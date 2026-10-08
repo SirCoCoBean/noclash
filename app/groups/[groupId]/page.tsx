@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { notFound, redirect } from "next/navigation";
+
+import InviteFriendButton from "@/components/InviteFriendButton";
 import { createClient } from "@/lib/supabase/server";
 
 export const instant = false;
@@ -38,18 +40,23 @@ export default async function GroupPage({
     notFound();
   }
 
-  const { data: members, error: membersError } = await supabase
-    .from("group_members")
-    .select(`
-      user_id,
-      role,
-      joined_at,
-      profiles (
-        display_name
-      )
-    `)
-    .eq("group_id", groupId)
-    .order("joined_at", { ascending: true });
+  const { data: members, error: membersError } =
+    await supabase
+      .from("group_members")
+      .select(`
+        user_id,
+        role,
+        joined_at,
+        profiles (
+          display_name
+        )
+      `)
+      .eq("group_id", groupId)
+      .order("joined_at", {
+        ascending: true,
+      });
+
+  const isOwner = group.created_by === user.id;
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-12">
@@ -71,12 +78,13 @@ export default async function GroupPage({
           </h1>
 
           <p className="mt-3 text-gray-600">
-            Manage your group and see everyone you're scheduling with.
+            Manage your group and see everyone you&apos;re
+            scheduling with.
           </p>
         </div>
 
         <section className="mt-10 rounded-xl border border-gray-200 bg-white p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
                 Members
@@ -87,12 +95,9 @@ export default async function GroupPage({
               </p>
             </div>
 
-            <button
-              type="button"
-              className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
-            >
-              Invite Friend
-            </button>
+            {isOwner && (
+              <InviteFriendButton groupId={group.id} />
+            )}
           </div>
 
           {membersError && (
@@ -110,7 +115,8 @@ export default async function GroupPage({
                 >
                   <div>
                     <p className="font-medium text-gray-900">
-                      {member.profiles?.display_name ?? "Unknown user"}
+                      {member.profiles?.display_name ??
+                        "Unknown user"}
                     </p>
 
                     <p className="mt-1 text-sm text-gray-500">
