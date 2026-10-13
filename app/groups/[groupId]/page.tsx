@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { notFound, redirect } from "next/navigation";
 
 import AddBusyBlockForm from "@/components/AddBusyBlockForm";
+import DeleteBusyBlockButton from "@/components/DeleteBusyBlockButton";
 import GroupSchedule from "@/components/GroupSchedule";
 import InviteFriendButton from "@/components/InviteFriendButton";
 import { createClient } from "@/lib/supabase/server";
@@ -42,9 +43,7 @@ export default async function GroupPage({
 
   const { data: group } = await supabase
     .from("groups")
-    .select(
-      "id, name, created_by, created_at",
-    )
+    .select("id, name, created_by, created_at")
     .eq("id", groupId)
     .single();
 
@@ -56,12 +55,11 @@ export default async function GroupPage({
   // CURRENT USER PROFILE
   // ======================================================
 
-  const { data: currentProfile } =
-    await supabase
-      .from("profiles")
-      .select("display_name, timezone")
-      .eq("id", user.id)
-      .single();
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("display_name, timezone")
+    .eq("id", user.id)
+    .single();
 
   const userTimezone =
     currentProfile?.timezone ?? "UTC";
@@ -88,7 +86,6 @@ export default async function GroupPage({
       ascending: true,
     });
 
-  // Extract the user IDs from the member rows.
   const memberIds =
     members?.map(
       (member) => member.user_id,
@@ -112,7 +109,7 @@ export default async function GroupPage({
     });
 
   // ======================================================
-  // ENTIRE GROUP'S BUSY TIMES
+  // WHOLE GROUP BUSY TIMES
   // ======================================================
 
   let groupBusyBlocks: {
@@ -123,7 +120,9 @@ export default async function GroupPage({
   }[] = [];
 
   if (memberIds.length > 0) {
-    const { data } = await supabase
+    const {
+      data: groupBusyData,
+    } = await supabase
       .from("busy_blocks")
       .select(
         "id, user_id, starts_at, ends_at",
@@ -133,11 +132,12 @@ export default async function GroupPage({
         ascending: true,
       });
 
-    groupBusyBlocks = data ?? [];
+    groupBusyBlocks =
+      groupBusyData ?? [];
   }
 
   // ======================================================
-  // PREPARE DATA FOR GROUP SCHEDULE COMPONENT
+  // PREPARE GROUP SCHEDULE DATA
   // ======================================================
 
   const scheduleMembers =
@@ -152,27 +152,27 @@ export default async function GroupPage({
   const scheduleBusyBlocks =
     groupBusyBlocks.map((block) => ({
       id: block.id,
-
       userId: block.user_id,
-
       startsAt: block.starts_at,
-
       endsAt: block.ends_at,
     }));
 
   // ======================================================
-  // GENERAL PAGE VARIABLES
+  // OTHER VALUES
   // ======================================================
 
   const isOwner =
     group.created_by === user.id;
 
   const dateFormatter =
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: userTimezone,
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone: userTimezone,
+        dateStyle: "medium",
+        timeStyle: "short",
+      },
+    );
 
   // ======================================================
   // PAGE
@@ -191,7 +191,7 @@ export default async function GroupPage({
           ← Back to dashboard
         </Link>
 
-        {/* GROUP HEADING */}
+        {/* GROUP HEADER */}
 
         <div className="mt-6">
           <p className="font-semibold text-blue-600">
@@ -203,9 +203,8 @@ export default async function GroupPage({
           </h1>
 
           <p className="mt-3 text-gray-600">
-            Manage your group and see
-            everyone you&apos;re scheduling
-            with.
+            Manage your group and see everyone
+            you&apos;re scheduling with.
           </p>
         </div>
 
@@ -214,7 +213,6 @@ export default async function GroupPage({
         {/* ================================================= */}
 
         <section className="mt-10 rounded-xl border border-gray-200 bg-white p-6">
-
           <div className="flex items-start justify-between gap-6">
 
             <div>
@@ -223,8 +221,7 @@ export default async function GroupPage({
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
-                People currently in this
-                group.
+                People currently in this group.
               </p>
             </div>
 
@@ -251,7 +248,6 @@ export default async function GroupPage({
                   className="flex items-center justify-between py-4"
                 >
                   <div>
-
                     <p className="font-medium text-gray-900">
                       {member.profiles
                         ?.display_name ??
@@ -259,16 +255,13 @@ export default async function GroupPage({
                     </p>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      {member.role ===
-                      "owner"
+                      {member.role === "owner"
                         ? "Group owner"
                         : "Member"}
                     </p>
-
                   </div>
 
-                  {member.user_id ===
-                    user.id && (
+                  {member.user_id === user.id && (
                     <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
                       You
                     </span>
@@ -283,20 +276,18 @@ export default async function GroupPage({
         </section>
 
         {/* ================================================= */}
-        {/* ADD PERSONAL BUSY TIME */}
+        {/* ADD BUSY TIME */}
         {/* ================================================= */}
 
         <section className="mt-10">
-
           <AddBusyBlockForm
             userId={user.id}
             timezone={userTimezone}
           />
-
         </section>
 
         {/* ================================================= */}
-        {/* PERSONAL BUSY TIMES */}
+        {/* YOUR BUSY TIMES */}
         {/* ================================================= */}
 
         <section className="mt-10 rounded-xl border border-gray-200 bg-white p-6">
@@ -306,9 +297,8 @@ export default async function GroupPage({
           </h2>
 
           <p className="mt-2 text-sm text-gray-600">
-            These times are used when
-            NoClash searches for times
-            everyone is free.
+            These times are used when NoClash
+            searches for times everyone is free.
           </p>
 
           {busyBlocksError && (
@@ -319,8 +309,7 @@ export default async function GroupPage({
 
           {!busyBlocksError &&
             (!personalBusyBlocks ||
-              personalBusyBlocks.length ===
-                0) && (
+              personalBusyBlocks.length === 0) && (
               <div className="mt-6 rounded-lg border border-dashed border-gray-300 p-6 text-center">
 
                 <p className="font-medium text-gray-900">
@@ -328,8 +317,7 @@ export default async function GroupPage({
                 </p>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Add one using the form
-                  above.
+                  Add one using the form above.
                 </p>
 
               </div>
@@ -337,32 +325,37 @@ export default async function GroupPage({
 
           {!busyBlocksError &&
             personalBusyBlocks &&
-            personalBusyBlocks.length >
-              0 && (
+            personalBusyBlocks.length > 0 && (
               <div className="mt-6 divide-y divide-gray-200">
 
                 {personalBusyBlocks.map(
                   (block) => (
                     <div
                       key={block.id}
-                      className="py-4"
+                      className="flex items-center justify-between gap-6 py-4"
                     >
-                      <p className="font-medium text-gray-900">
-                        {dateFormatter.format(
-                          new Date(
-                            block.starts_at,
-                          ),
-                        )}
-                      </p>
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {dateFormatter.format(
+                            new Date(
+                              block.starts_at,
+                            ),
+                          )}
+                        </p>
 
-                      <p className="mt-1 text-sm text-gray-500">
-                        to{" "}
-                        {dateFormatter.format(
-                          new Date(
-                            block.ends_at,
-                          ),
-                        )}
-                      </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          to{" "}
+                          {dateFormatter.format(
+                            new Date(
+                              block.ends_at,
+                            ),
+                          )}
+                        </p>
+                      </div>
+
+                      <DeleteBusyBlockButton
+                        busyBlockId={block.id}
+                      />
                     </div>
                   ),
                 )}
@@ -377,15 +370,11 @@ export default async function GroupPage({
         {/* ================================================= */}
 
         <section className="mt-10">
-
           <GroupSchedule
             members={scheduleMembers}
-            busyBlocks={
-              scheduleBusyBlocks
-            }
+            busyBlocks={scheduleBusyBlocks}
             timezone={userTimezone}
           />
-
         </section>
 
       </div>

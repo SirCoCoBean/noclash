@@ -25,20 +25,43 @@ type TimeRange = {
   end: Date;
 };
 
+type DisplayBusyBlock = BusyBlock & {
+  start: Date;
+  end: Date;
+};
+
+const START_HOUR = 9;
+const END_HOUR = 23;
+
 function getTodayForDateInput() {
   const now = new Date();
 
   const localTime = new Date(
-    now.getTime() - now.getTimezoneOffset() * 60_000,
+    now.getTime() -
+      now.getTimezoneOffset() * 60_000,
   );
 
   return localTime.toISOString().slice(0, 10);
 }
 
-function formatTime(date: Date) {
-  return date.toLocaleTimeString([], {
+function formatTime(
+  date: Date,
+  timezone: string,
+) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
     hour: "numeric",
     minute: "2-digit",
+  }).format(date);
+}
+
+function formatHour(hour: number) {
+  const date = new Date();
+
+  date.setHours(hour, 0, 0, 0);
+
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
   });
 }
 
@@ -58,12 +81,17 @@ export default function GroupSchedule({
     if (!selectedDate) {
       return {
         dailyBusyBlocks: [],
+        mergedBusy: [],
         freeTimes: [],
       };
     }
 
-    // For our first version, search between
-    // 9:00 AM and 11:00 PM.
+    // First version:
+    // search from 9 AM until 11 PM.
+    //
+    // Because your profile timezone currently matches
+    // your browser timezone, datetime-local works correctly
+    // for our current version.
     const searchStart = new Date(
       `${selectedDate}T09:00:00`,
     );
@@ -72,25 +100,27 @@ export default function GroupSchedule({
       `${selectedDate}T23:00:00`,
     );
 
-    // --------------------------------------------------
-    // 1. Find every busy block overlapping this day.
-    // --------------------------------------------------
+    // -----------------------------------------------
+    // Find every busy block that overlaps this date.
+    // -----------------------------------------------
 
-    const dailyBusyBlocks = busyBlocks
-      .map((block) => ({
-        ...block,
-        start: new Date(block.startsAt),
-        end: new Date(block.endsAt),
-      }))
-      .filter(
-        (block) =>
-          block.start < searchEnd &&
-          block.end > searchStart,
-      );
+    const dailyBusyBlocks: DisplayBusyBlock[] =
+      busyBlocks
+        .map((block) => ({
+          ...block,
+          start: new Date(block.startsAt),
+          end: new Date(block.endsAt),
+        }))
+        .filter(
+          (block) =>
+            block.start < searchEnd &&
+            block.end > searchStart,
+        );
 
-    // --------------------------------------------------
-    // 2. Convert everyone's busy blocks into intervals.
-    // --------------------------------------------------
+    // -----------------------------------------------
+    // Convert them into intervals and clip anything
+    // extending outside our 9 AM–11 PM window.
+    // -----------------------------------------------
 
     const intervals: TimeRange[] =
       dailyBusyBlocks
@@ -111,18 +141,9 @@ export default function GroupSchedule({
             b.start.getTime(),
         );
 
-    // --------------------------------------------------
-    // 3. Merge overlapping busy intervals.
-    //
-    // Example:
-    //
-    // Tom:  5 PM ---- 7 PM
-    // Alex:       6 PM ---- 8 PM
-    //
-    // becomes:
-    //
-    //       5 PM -------- 8 PM
-    // --------------------------------------------------
+    // -----------------------------------------------
+    // Merge overlapping intervals.
+    // -----------------------------------------------
 
     const mergedBusy: TimeRange[] = [];
 
@@ -151,9 +172,9 @@ export default function GroupSchedule({
       }
     }
 
-    // --------------------------------------------------
-    // 4. Find the gaps between busy intervals.
-    // --------------------------------------------------
+    // -----------------------------------------------
+    // Find the gaps between the merged busy periods.
+    // -----------------------------------------------
 
     const freeTimes: TimeRange[] = [];
 
@@ -179,10 +200,10 @@ export default function GroupSchedule({
       });
     }
 
-    // --------------------------------------------------
-    // 5. Only show gaps long enough for the requested
-    // meeting duration.
-    // --------------------------------------------------
+    // -----------------------------------------------
+    // Only keep free windows large enough for the
+    // selected meeting duration.
+    // -----------------------------------------------
 
     const minimumDurationMs =
       durationMinutes * 60 * 1000;
@@ -197,7 +218,10 @@ export default function GroupSchedule({
       });
 
     return {
+      searchStart,
+      searchEnd,
       dailyBusyBlocks,
+      mergedBusy,
       freeTimes: filteredFreeTimes,
     };
   }, [
@@ -205,6 +229,74 @@ export default function GroupSchedule({
     durationMinutes,
     busyBlocks,
   ]);
+
+  const hourLabels = [];
+
+  for (
+    let hour = START_HOUR;
+    hour <= END_HOUR;
+    hour++
+  ) {
+    hourLabels.push(hour);
+  }
+
+  function getPosition(
+    date: Date,
+    searchStart: Date,
+    searchEnd: Date,
+  ) {
+    const total =
+      searchEnd.getTime() -
+      searchStart.getTime();
+
+    const elapsed =
+      date.getTime() -
+      searchStart.getTime();
+
+    return (elapsed / total) * 100;
+  }
+
+  function getBlockStyle(
+    start: Date,
+    end: Date,
+  ) {
+    if (
+      !schedule.searchStart ||
+      !schedule.searchEnd
+    ) {
+      return {
+        left: "0%",
+        width: "0%",
+      };
+    }
+
+    const clippedStart =
+      start < schedule.searchStart
+        ? schedule.searchStart
+        : start;
+
+    const clippedEnd =
+      end > schedule.searchEnd
+        ? schedule.searchEnd
+        : end;
+
+    const left = getPosition(
+      clippedStart,
+      schedule.searchStart,
+      schedule.searchEnd,
+    );
+
+    const right = getPosition(
+      clippedEnd,
+      schedule.searchStart,
+      schedule.searchEnd,
+    );
+
+    return {
+      left: `${left}%`,
+      width: `${right - left}%`,
+    };
+  }
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
@@ -214,14 +306,16 @@ export default function GroupSchedule({
         </h2>
 
         <p className="mt-2 text-sm text-gray-600">
-          Find times when everyone in the group is
-          available.
+          See everyone&apos;s schedule and find
+          times when the whole group is free.
         </p>
 
         <p className="mt-1 text-xs text-gray-500">
           Times are shown in {timezone}.
         </p>
       </div>
+
+      {/* SETTINGS */}
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div>
@@ -237,7 +331,9 @@ export default function GroupSchedule({
             type="date"
             value={selectedDate}
             onChange={(event) =>
-              setSelectedDate(event.target.value)
+              setSelectedDate(
+                event.target.value,
+              )
             }
             className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
           />
@@ -284,58 +380,144 @@ export default function GroupSchedule({
         </div>
       </div>
 
-      {/* MEMBER BUSY TIMES */}
+      {/* VISUAL TIMELINE */}
 
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Busy times
-        </h3>
+      <div className="mt-10 overflow-x-auto">
+        <div className="min-w-[850px]">
 
-        {members.map((member) => {
-          const memberBlocks =
-            schedule.dailyBusyBlocks.filter(
-              (block) =>
-                block.userId === member.userId,
-            );
+          {/* Hour labels */}
 
-          return (
-            <div
-              key={member.userId}
-              className="mt-4 rounded-lg bg-gray-50 p-4"
-            >
-              <p className="font-medium text-gray-900">
-                {member.displayName}
-              </p>
-
-              {memberBlocks.length === 0 ? (
-                <p className="mt-1 text-sm text-gray-500">
-                  No busy times on this date.
-                </p>
-              ) : (
-                <div className="mt-2 space-y-1">
-                  {memberBlocks.map((block) => (
-                    <p
-                      key={block.id}
-                      className="text-sm text-gray-600"
-                    >
-                      Busy{" "}
-                      {formatTime(block.start)}
-                      {" – "}
-                      {formatTime(block.end)}
-                    </p>
-                  ))}
+          <div className="ml-28 flex">
+            {hourLabels.slice(0, -1).map(
+              (hour) => (
+                <div
+                  key={hour}
+                  className="flex-1 text-xs text-gray-500"
+                >
+                  {formatHour(hour)}
                 </div>
-              )}
+              ),
+            )}
+          </div>
+
+          {/* Member rows */}
+
+          <div className="mt-3 space-y-3">
+            {members.map((member) => {
+              const memberBlocks =
+                schedule.dailyBusyBlocks.filter(
+                  (block) =>
+                    block.userId ===
+                    member.userId,
+                );
+
+              return (
+                <div
+                  key={member.userId}
+                  className="flex items-center"
+                >
+                  <div className="w-28 shrink-0 pr-4 text-sm font-medium text-gray-900">
+                    {member.displayName}
+                  </div>
+
+                  <div className="relative h-12 flex-1 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+
+                    {/* Vertical hour grid */}
+
+                    <div className="absolute inset-0 flex">
+                      {hourLabels
+                        .slice(0, -1)
+                        .map((hour) => (
+                          <div
+                            key={hour}
+                            className="flex-1 border-r border-gray-200 last:border-r-0"
+                          />
+                        ))}
+                    </div>
+
+                    {/* Busy blocks */}
+
+                    {memberBlocks.map(
+                      (block) => (
+                        <div
+                          key={block.id}
+                          className="absolute top-1 bottom-1 rounded-md bg-blue-600 px-2 text-xs font-medium text-white"
+                          style={getBlockStyle(
+                            block.start,
+                            block.end,
+                          )}
+                          title={`${formatTime(
+                            block.start,
+                            timezone,
+                          )} – ${formatTime(
+                            block.end,
+                            timezone,
+                          )}`}
+                        >
+                          <span className="flex h-full items-center overflow-hidden whitespace-nowrap">
+                            Busy
+                          </span>
+                        </div>
+                      ),
+                    )}
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Everyone free row */}
+
+          <div className="mt-5 flex items-center">
+            <div className="w-28 shrink-0 pr-4 text-sm font-semibold text-green-700">
+              Everyone free
             </div>
-          );
-        })}
+
+            <div className="relative h-12 flex-1 overflow-hidden rounded-lg border border-green-200 bg-gray-50">
+
+              <div className="absolute inset-0 flex">
+                {hourLabels
+                  .slice(0, -1)
+                  .map((hour) => (
+                    <div
+                      key={hour}
+                      className="flex-1 border-r border-gray-200 last:border-r-0"
+                    />
+                  ))}
+              </div>
+
+              {schedule.freeTimes.map(
+                (range, index) => (
+                  <div
+                    key={`${range.start.toISOString()}-${index}`}
+                    className="absolute top-1 bottom-1 rounded-md bg-green-200"
+                    style={getBlockStyle(
+                      range.start,
+                      range.end,
+                    )}
+                    title={`${formatTime(
+                      range.start,
+                      timezone,
+                    )} – ${formatTime(
+                      range.end,
+                      timezone,
+                    )}`}
+                  />
+                ),
+              )}
+
+            </div>
+          </div>
+
+        </div>
       </div>
 
-      {/* COMMON FREE TIMES */}
+      {/* TEXT SUMMARY */}
 
-      <div className="mt-8">
+      <div className="mt-10">
         <h3 className="text-lg font-semibold text-gray-900">
-          Everyone is free
+          Available times
         </h3>
 
         <p className="mt-1 text-sm text-gray-500">
@@ -359,13 +541,19 @@ export default function GroupSchedule({
             {schedule.freeTimes.map(
               (range, index) => (
                 <div
-                  key={`${range.start.toISOString()}-${index}`}
+                  key={`${range.end.toISOString()}-${index}`}
                   className="rounded-lg border border-green-200 bg-green-50 p-4"
                 >
                   <p className="font-semibold text-green-900">
-                    {formatTime(range.start)}
+                    {formatTime(
+                      range.start,
+                      timezone,
+                    )}
                     {" – "}
-                    {formatTime(range.end)}
+                    {formatTime(
+                      range.end,
+                      timezone,
+                    )}
                   </p>
 
                   <p className="mt-1 text-sm text-green-700">
