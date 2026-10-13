@@ -137,6 +137,23 @@ export default async function GroupPage({
   }
 
   // ======================================================
+  // GROUP EVENTS
+  // ======================================================
+
+  const {
+    data: groupEvents,
+    error: groupEventsError,
+  } = await supabase
+    .from("events")
+    .select(
+      "id, title, starts_at, ends_at",
+    )
+    .eq("group_id", groupId)
+    .order("starts_at", {
+      ascending: true,
+    });
+
+  // ======================================================
   // PREPARE GROUP SCHEDULE DATA
   // ======================================================
 
@@ -157,8 +174,16 @@ export default async function GroupPage({
       endsAt: block.ends_at,
     }));
 
+  const scheduleEvents =
+    groupEvents?.map((event) => ({
+      id: event.id,
+      title: event.title,
+      startsAt: event.starts_at,
+      endsAt: event.ends_at,
+    })) ?? [];
+
   // ======================================================
-  // OTHER VALUES
+  // GENERAL VALUES
   // ======================================================
 
   const isOwner =
@@ -272,7 +297,6 @@ export default async function GroupPage({
 
             </div>
           )}
-
         </section>
 
         {/* ================================================= */}
@@ -366,16 +390,32 @@ export default async function GroupPage({
         </section>
 
         {/* ================================================= */}
+        {/* EVENTS ERROR */}
+        {/* ================================================= */}
+
+        {groupEventsError && (
+          <section className="mt-10 rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-700">
+              Could not load group events.
+            </p>
+          </section>
+        )}
+
+        {/* ================================================= */}
         {/* GROUP SCHEDULE */}
         {/* ================================================= */}
 
-        <section className="mt-10">
-          <GroupSchedule
-            members={scheduleMembers}
-            busyBlocks={scheduleBusyBlocks}
-            timezone={userTimezone}
-          />
-        </section>
+        {!groupEventsError && (
+          <section className="mt-10">
+            <GroupSchedule
+              groupId={group.id}
+              members={scheduleMembers}
+              busyBlocks={scheduleBusyBlocks}
+              events={scheduleEvents}
+              timezone={userTimezone}
+            />
+          </section>
+        )}
 
       </div>
     </main>
