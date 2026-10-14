@@ -1,48 +1,109 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useState,
+} from "react";
+
 import { useRouter } from "next/navigation";
+
 import { createClient } from "@/lib/supabase/client";
 
 type OnboardingFormProps = {
   userId: string;
+  initialDisplayName?: string | null;
 };
 
 export default function OnboardingForm({
   userId,
+  initialDisplayName,
 }: OnboardingFormProps) {
   const router = useRouter();
-  const supabase = createClient();
 
-  const [displayName, setDisplayName] = useState("");
-  const [timezone, setTimezone] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const supabase =
+    createClient();
+
+  const [
+    displayName,
+    setDisplayName,
+  ] = useState(
+    initialDisplayName ?? "",
+  );
+
+  const [
+    timezone,
+    setTimezone,
+  ] = useState("");
+
+  const [
+    isSaving,
+    setIsSaving,
+  ] = useState(false);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
   useEffect(() => {
-    const detectedTimezone =
-      Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    setTimezone(detectedTimezone);
+    setTimezone(
+      Intl.DateTimeFormat()
+        .resolvedOptions()
+        .timeZone ||
+        "UTC",
+    );
   }, []);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     setErrorMessage("");
+
+    const trimmedName =
+      displayName.trim();
+
+    if (!trimmedName) {
+      setErrorMessage(
+        "Please enter your name.",
+      );
+
+      return;
+    }
+
+    if (!timezone) {
+      setErrorMessage(
+        "We could not detect your timezone.",
+      );
+
+      return;
+    }
+
     setIsSaving(true);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        display_name: displayName.trim(),
-        timezone: timezone,
-      })
-      .eq("id", userId);
+    const { error } =
+      await supabase
+        .from("profiles")
+        .update({
+          display_name:
+            trimmedName,
+
+          timezone,
+        })
+        .eq(
+          "id",
+          userId,
+        );
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(
+        error.message,
+      );
+
       setIsSaving(false);
+
       return;
     }
 
@@ -53,71 +114,74 @@ export default function OnboardingForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
     >
-      <h1 className="text-3xl font-bold text-gray-900">
-        Welcome to NoClash
-      </h1>
 
-      <p className="mt-2 text-gray-600">
-        Let's finish setting up your profile.
-      </p>
+      <div>
 
-      <div className="mt-8">
         <label
           htmlFor="displayName"
-          className="block font-medium text-gray-700"
+          className="block text-sm font-semibold text-[#5f5358]"
         >
-          What should your friends call you?
+          What should we call you?
         </label>
 
         <input
           id="displayName"
           type="text"
           value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          required
-          minLength={2}
-          maxLength={50}
+          maxLength={60}
+          onChange={(event) =>
+            setDisplayName(
+              event.target.value,
+            )
+          }
           placeholder="Tom"
-          className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500"
+          className="sakura-input mt-2 px-4 py-3"
         />
+
       </div>
 
-      <div className="mt-6">
-        <label
-          htmlFor="timezone"
-          className="block font-medium text-gray-700"
-        >
+      <div className="mt-5">
+
+        <p className="text-sm font-semibold text-[#5f5358]">
           Your timezone
-        </label>
-
-        <input
-          id="timezone"
-          type="text"
-          value={timezone}
-          readOnly
-          className="mt-2 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-700"
-        />
-
-        <p className="mt-2 text-sm text-gray-500">
-          We detected this automatically from your browser.
         </p>
+
+        <div className="mt-2 rounded-xl border border-[#a9b59f]/25 bg-[#f5f7f2]/70 px-4 py-3">
+
+          <p className="break-words text-sm font-medium text-[#5f6c58]">
+            {timezone ||
+              "Detecting timezone..."}
+          </p>
+
+        </div>
+
+        <p className="mt-2 text-xs leading-5 text-[#8c7c82]">
+          NoClash uses this to display schedules at the
+          correct local time.
+        </p>
+
       </div>
 
       {errorMessage && (
-        <p className="mt-4 text-sm text-red-600">
+        <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
           {errorMessage}
         </p>
       )}
 
       <button
         type="submit"
-        disabled={isSaving}
-        className="mt-8 w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={
+          isSaving ||
+          !timezone
+        }
+        className="sakura-button mt-6 w-full px-5 py-3 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSaving ? "Saving..." : "Continue"}
+        {isSaving
+          ? "Saving..."
+          : "Continue to NoClash"}
       </button>
+
     </form>
   );
 }
