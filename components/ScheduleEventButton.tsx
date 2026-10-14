@@ -1,6 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useState,
+} from "react";
+
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
@@ -12,9 +16,13 @@ type ScheduleEventButtonProps = {
   timezone: string;
 };
 
-function toLocalInputValue(date: Date) {
+function toLocalInputValue(
+  date: Date,
+) {
   const offset =
-    date.getTimezoneOffset() * 60 * 1000;
+    date.getTimezoneOffset() *
+    60 *
+    1000;
 
   return new Date(
     date.getTime() - offset,
@@ -29,27 +37,44 @@ export default function ScheduleEventButton({
   slotEnd,
   timezone,
 }: ScheduleEventButtonProps) {
-  const router = useRouter();
-  const supabase = createClient();
+  const router =
+    useRouter();
 
-  const [isOpen, setIsOpen] =
-    useState(false);
+  const supabase =
+    createClient();
 
-  const [title, setTitle] =
-    useState("");
+  const [
+    isOpen,
+    setIsOpen,
+  ] = useState(false);
 
-  const [startsAt, setStartsAt] =
-    useState(
-      toLocalInputValue(slotStart),
-    );
+  const [
+    title,
+    setTitle,
+  ] = useState("");
 
-  const [endsAt, setEndsAt] =
-    useState(
-      toLocalInputValue(slotEnd),
-    );
+  const [
+    startsAt,
+    setStartsAt,
+  ] = useState(
+    toLocalInputValue(
+      slotStart,
+    ),
+  );
 
-  const [isSaving, setIsSaving] =
-    useState(false);
+  const [
+    endsAt,
+    setEndsAt,
+  ] = useState(
+    toLocalInputValue(
+      slotEnd,
+    ),
+  );
+
+  const [
+    isSaving,
+    setIsSaving,
+  ] = useState(false);
 
   const [
     errorMessage,
@@ -80,7 +105,9 @@ export default function ScheduleEventButton({
     const endDate =
       new Date(endsAt);
 
-    if (endDate <= startDate) {
+    if (
+      endDate <= startDate
+    ) {
       setErrorMessage(
         "The end time must be after the start time.",
       );
@@ -143,7 +170,7 @@ export default function ScheduleEventButton({
         onClick={() =>
           setIsOpen(true)
         }
-        className="mt-4 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+        className="sakura-button mt-4 px-4 py-2.5 text-sm"
       >
         Schedule Event
       </button>
@@ -153,26 +180,24 @@ export default function ScheduleEventButton({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 border-t border-green-200 pt-4"
+      className="mt-4 rounded-xl border border-[#a9b59f]/20 bg-white/65 p-4"
     >
-      <p className="text-sm font-semibold text-gray-900">
+
+      <p className="sakura-title font-semibold">
         Create event
       </p>
 
-      <p className="mt-1 text-xs text-gray-500">
+      <p className="mt-1 text-xs text-[#8c7c82]">
         Times shown in {timezone}.
       </p>
 
       <div className="mt-4">
-        <label
-          htmlFor={`title-${slotStart.toISOString()}`}
-          className="block text-sm font-medium text-gray-700"
-        >
+
+        <label className="block text-sm font-semibold text-[#5f5358]">
           Event name
         </label>
 
         <input
-          id={`title-${slotStart.toISOString()}`}
           type="text"
           value={title}
           onChange={(event) =>
@@ -182,56 +207,71 @@ export default function ScheduleEventButton({
           }
           placeholder="Dinner"
           maxLength={100}
-          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+          className="sakura-input mt-2 px-3 py-2"
         />
+
       </div>
 
       <div className="mt-4 grid gap-3">
+
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+
+          <label className="block text-sm font-semibold text-[#5f5358]">
             Start
           </label>
 
           <input
             type="datetime-local"
             value={startsAt}
-            min={toLocalInputValue(
-              slotStart,
-            )}
-            max={toLocalInputValue(
-              slotEnd,
-            )}
+            min={
+              toLocalInputValue(
+                slotStart,
+              )
+            }
+            max={
+              toLocalInputValue(
+                slotEnd,
+              )
+            }
             onChange={(event) =>
               setStartsAt(
                 event.target.value,
               )
             }
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+            className="sakura-input mt-2 px-3 py-2"
           />
+
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+
+          <label className="block text-sm font-semibold text-[#5f5358]">
             End
           </label>
 
           <input
             type="datetime-local"
             value={endsAt}
-            min={toLocalInputValue(
-              slotStart,
-            )}
-            max={toLocalInputValue(
-              slotEnd,
-            )}
+            min={
+              toLocalInputValue(
+                slotStart,
+              )
+            }
+            max={
+              toLocalInputValue(
+                slotEnd,
+              )
+            }
             onChange={(event) =>
               setEndsAt(
                 event.target.value,
               )
             }
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+            className="sakura-input mt-2 px-3 py-2"
           />
+
         </div>
+
       </div>
 
       {errorMessage && (
@@ -240,11 +280,12 @@ export default function ScheduleEventButton({
         </p>
       )}
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
+
         <button
           type="submit"
           disabled={isSaving}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="sakura-button px-4 py-2 text-sm disabled:opacity-50"
         >
           {isSaving
             ? "Creating..."
@@ -257,11 +298,13 @@ export default function ScheduleEventButton({
             setIsOpen(false);
             setErrorMessage("");
           }}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          className="sakura-button-secondary px-4 py-2 text-sm"
         >
           Cancel
         </button>
+
       </div>
+
     </form>
   );
 }

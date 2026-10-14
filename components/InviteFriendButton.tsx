@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useState,
+} from "react";
+
 import { createClient } from "@/lib/supabase/client";
 
 type InviteFriendButtonProps = {
@@ -10,97 +13,151 @@ type InviteFriendButtonProps = {
 export default function InviteFriendButton({
   groupId,
 }: InviteFriendButtonProps) {
-  const supabase = createClient();
+  const supabase =
+    createClient();
 
-  const [inviteLink, setInviteLink] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [
+    inviteUrl,
+    setInviteUrl,
+  ] = useState("");
+
+  const [
+    isCreating,
+    setIsCreating,
+  ] = useState(false);
+
+  const [
+    copied,
+    setCopied,
+  ] = useState(false);
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
   async function createInvite() {
     setErrorMessage("");
     setCopied(false);
     setIsCreating(true);
 
-    const { data, error } = await supabase.rpc(
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
       "create_group_invite",
       {
-        target_group_id: groupId,
-      }
+        target_group_id:
+          groupId,
+      },
     );
 
-    if (error) {
-      setErrorMessage(error.message);
+    if (
+      error ||
+      !data
+    ) {
+      setErrorMessage(
+        error?.message ??
+          "Could not create invite.",
+      );
+
       setIsCreating(false);
+
       return;
     }
 
-    const link = `${window.location.origin}/join/${data}`;
+    const url =
+      `${window.location.origin}/join/${data}`;
 
-    setInviteLink(link);
+    setInviteUrl(url);
     setIsCreating(false);
   }
 
   async function copyInvite() {
-    if (!inviteLink) {
+    if (!inviteUrl) {
       return;
     }
 
-    await navigator.clipboard.writeText(inviteLink);
+    await navigator.clipboard.writeText(
+      inviteUrl,
+    );
 
     setCopied(true);
+
+    window.setTimeout(
+      () =>
+        setCopied(false),
+      2000,
+    );
   }
 
-  return (
-    <div>
-      {!inviteLink ? (
+  if (!inviteUrl) {
+    return (
+      <div>
+
         <button
           type="button"
           onClick={createInvite}
           disabled={isCreating}
-          className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="sakura-button px-5 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isCreating ? "Creating..." : "Invite Friend"}
+          {isCreating
+            ? "Creating..."
+            : "Invite friends"}
         </button>
-      ) : (
-        <div className="flex max-w-xl flex-col gap-3">
-          <p className="text-sm font-medium text-gray-700">
-            Share this invite link:
+
+        {errorMessage && (
+          <p className="mt-2 text-sm text-red-600">
+            {errorMessage}
           </p>
+        )}
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              readOnly
-              value={inviteLink}
-              className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
-            />
+      </div>
+    );
+  }
 
-            <button
-              type="button"
-              onClick={copyInvite}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
+  return (
+    <div className="w-full max-w-md">
 
-          <button
-            type="button"
-            onClick={createInvite}
-            disabled={isCreating}
-            className="self-start text-sm font-medium text-blue-600 hover:text-blue-700"
-          >
-            Generate a new link
-          </button>
-        </div>
-      )}
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9b6575]">
+        Invite link
+      </p>
+
+      <div className="flex gap-2">
+
+        <input
+          type="text"
+          readOnly
+          value={inviteUrl}
+          className="sakura-input min-w-0 flex-1 px-3 py-2 text-xs"
+        />
+
+        <button
+          type="button"
+          onClick={copyInvite}
+          className="sakura-button-secondary shrink-0 px-4 py-2 text-sm"
+        >
+          {copied
+            ? "Copied!"
+            : "Copy"}
+        </button>
+
+      </div>
+
+      <button
+        type="button"
+        onClick={createInvite}
+        className="mt-2 text-xs font-semibold text-[#b9687d] hover:text-[#945064]"
+      >
+        Generate a new link
+      </button>
 
       {errorMessage && (
-        <p className="mt-3 text-sm text-red-600">
+        <p className="mt-2 text-xs text-red-600">
           {errorMessage}
         </p>
       )}
+
     </div>
   );
 }

@@ -9,16 +9,10 @@ import {
 import EventActions from "@/components/EventActions";
 import ScheduleEventButton from "@/components/ScheduleEventButton";
 
-
-// ======================================================
-// TYPES
-// ======================================================
-
 type Member = {
   userId: string;
   displayName: string;
 };
-
 
 type BusyBlock = {
   id: string;
@@ -26,7 +20,6 @@ type BusyBlock = {
   startsAt: string;
   endsAt: string;
 };
-
 
 type GroupEvent = {
   id: string;
@@ -36,7 +29,6 @@ type GroupEvent = {
   canManage: boolean;
 };
 
-
 type GroupScheduleProps = {
   groupId: string;
   members: Member[];
@@ -45,12 +37,10 @@ type GroupScheduleProps = {
   timezone: string;
 };
 
-
 type TimeRange = {
   start: Date;
   end: Date;
 };
-
 
 type DisplayBusyBlock =
   BusyBlock & {
@@ -58,13 +48,11 @@ type DisplayBusyBlock =
     end: Date;
   };
 
-
 type DisplayEvent =
   GroupEvent & {
     start: Date;
     end: Date;
   };
-
 
 type DaySchedule = {
   searchStart: Date;
@@ -74,25 +62,18 @@ type DaySchedule = {
   freeTimes: TimeRange[];
 };
 
-
 type MultiDayResult = {
   date: string;
   freeTimes: TimeRange[];
 };
-
-
-// ======================================================
-// SCHEDULING HOURS
-// ======================================================
 
 const START_HOUR = 9;
 const END_HOUR = 23;
 
 const MAX_SEARCH_DAYS = 31;
 
-
 // ======================================================
-// TIMEZONE HELPERS
+// TIME HELPERS
 // ======================================================
 
 function getTimeZoneParts(
@@ -150,16 +131,6 @@ function getTimeZoneParts(
   };
 }
 
-
-// Convert:
-// October 14 + 9:00 AM + America/New_York
-//
-// into the real absolute JavaScript Date.
-//
-// This allows the scheduling algorithm to work
-// with the user's saved timezone instead of
-// assuming UTC.
-
 function dateAtTimeInZone(
   dateString: string,
   hour: number,
@@ -187,10 +158,6 @@ function dateAtTimeInZone(
 
   let guess =
     desiredTime;
-
-  // Run a few adjustments so the generated
-  // absolute Date corresponds to the desired
-  // wall-clock time in the requested timezone.
 
   for (
     let attempt = 0;
@@ -231,11 +198,6 @@ function dateAtTimeInZone(
   return new Date(guess);
 }
 
-
-// ======================================================
-// DATE HELPERS
-// ======================================================
-
 function getDateStringInTimeZone(
   date: Date,
   timezone: string,
@@ -259,28 +221,21 @@ function getDateStringInTimeZone(
   let day = "";
 
   for (const part of parts) {
-    if (
-      part.type === "year"
-    ) {
+    if (part.type === "year") {
       year = part.value;
     }
 
-    if (
-      part.type === "month"
-    ) {
+    if (part.type === "month") {
       month = part.value;
     }
 
-    if (
-      part.type === "day"
-    ) {
+    if (part.type === "day") {
       day = part.value;
     }
   }
 
   return `${year}-${month}-${day}`;
 }
-
 
 function addDays(
   dateString: string,
@@ -309,7 +264,6 @@ function addDays(
     .slice(0, 10);
 }
 
-
 function getDaysBetween(
   startDate: string,
   endDate: string,
@@ -324,18 +278,21 @@ function getDaysBetween(
       `${endDate}T00:00:00Z`,
     );
 
-  const milliseconds =
-    end.getTime() -
-    start.getTime();
-
   return (
     Math.floor(
-      milliseconds /
-        (24 * 60 * 60 * 1000),
+      (
+        end.getTime() -
+        start.getTime()
+      ) /
+        (
+          24 *
+          60 *
+          60 *
+          1000
+        ),
     ) + 1
   );
 }
-
 
 function formatDateLabel(
   dateString: string,
@@ -362,19 +319,23 @@ function formatDateLabel(
   return new Intl.DateTimeFormat(
     "en-US",
     {
-      timeZone: "UTC",
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+      timeZone:
+        "UTC",
+
+      weekday:
+        "long",
+
+      month:
+        "long",
+
+      day:
+        "numeric",
+
+      year:
+        "numeric",
     },
   ).format(date);
 }
-
-
-// ======================================================
-// DISPLAY HELPERS
-// ======================================================
 
 function formatTime(
   date: Date,
@@ -383,13 +344,17 @@ function formatTime(
   return new Intl.DateTimeFormat(
     "en-US",
     {
-      timeZone: timezone,
-      hour: "numeric",
-      minute: "2-digit",
+      timeZone:
+        timezone,
+
+      hour:
+        "numeric",
+
+      minute:
+        "2-digit",
     },
   ).format(date);
 }
-
 
 function formatHour(
   hour: number,
@@ -405,9 +370,8 @@ function formatHour(
   return `${displayHour} ${suffix}`;
 }
 
-
 // ======================================================
-// CORE NOCLASH ALGORITHM
+// SCHEDULING ALGORITHM
 // ======================================================
 
 function calculateDaySchedule(
@@ -417,10 +381,6 @@ function calculateDaySchedule(
   events: GroupEvent[],
   timezone: string,
 ): DaySchedule {
-  // Search from:
-  //
-  // 9:00 AM → 11:00 PM
-
   const searchStart =
     dateAtTimeInZone(
       dateString,
@@ -436,11 +396,6 @@ function calculateDaySchedule(
       0,
       timezone,
     );
-
-
-  // ====================================================
-  // BUSY BLOCKS ON THIS DAY
-  // ====================================================
 
   const dailyBusyBlocks:
     DisplayBusyBlock[] =
@@ -466,11 +421,6 @@ function calculateDaySchedule(
             searchStart,
       );
 
-
-  // ====================================================
-  // EVENTS ON THIS DAY
-  // ====================================================
-
   const dailyEvents:
     DisplayEvent[] =
     events
@@ -494,11 +444,6 @@ function calculateDaySchedule(
           event.end >
             searchStart,
       );
-
-
-  // ====================================================
-  // CREATE ONE LIST OF BLOCKED INTERVALS
-  // ====================================================
 
   const intervals:
     TimeRange[] = [
@@ -539,14 +484,8 @@ function calculateDaySchedule(
         b.start.getTime(),
     );
 
-
-  // ====================================================
-  // MERGE OVERLAPPING BLOCKED TIMES
-  // ====================================================
-
   const mergedBusy:
     TimeRange[] = [];
-
 
   for (
     const interval
@@ -556,7 +495,6 @@ function calculateDaySchedule(
       mergedBusy[
         mergedBusy.length - 1
       ];
-
 
     if (!last) {
       mergedBusy.push({
@@ -569,7 +507,6 @@ function calculateDaySchedule(
 
       continue;
     }
-
 
     if (
       interval.start <=
@@ -593,18 +530,11 @@ function calculateDaySchedule(
     }
   }
 
-
-  // ====================================================
-  // FIND THE GAPS
-  // ====================================================
-
   const freeTimes:
     TimeRange[] = [];
 
-
   let cursor =
     searchStart;
-
 
   for (
     const busy
@@ -623,7 +553,6 @@ function calculateDaySchedule(
       });
     }
 
-
     if (
       busy.end >
       cursor
@@ -632,7 +561,6 @@ function calculateDaySchedule(
         busy.end;
     }
   }
-
 
   if (
     cursor <
@@ -647,16 +575,10 @@ function calculateDaySchedule(
     });
   }
 
-
-  // ====================================================
-  // REMOVE RESULTS THAT ARE TOO SHORT
-  // ====================================================
-
   const minimumDurationMs =
     minimumMinutes *
     60 *
     1000;
-
 
   const filteredFreeTimes =
     freeTimes.filter(
@@ -665,7 +587,6 @@ function calculateDaySchedule(
           range.start.getTime() >=
         minimumDurationMs,
     );
-
 
   return {
     searchStart,
@@ -676,7 +597,6 @@ function calculateDaySchedule(
       filteredFreeTimes,
   };
 }
-
 
 // ======================================================
 // COMPONENT
@@ -695,54 +615,35 @@ export default function GroupSchedule({
       timezone,
     );
 
-
-  // ====================================================
-  // DAILY VIEW STATE
-  // ====================================================
-
   const [
     selectedDate,
     setSelectedDate,
-  ] =
-    useState(today);
-
+  ] = useState(today);
 
   const [
     durationMinutes,
     setDurationMinutes,
-  ] =
-    useState(60);
-
-
-  // ====================================================
-  // MULTI-DAY SEARCH STATE
-  // ====================================================
+  ] = useState(60);
 
   const [
     rangeStart,
     setRangeStart,
-  ] =
-    useState(today);
-
+  ] = useState(today);
 
   const [
     rangeEnd,
     setRangeEnd,
-  ] =
-    useState(
-      addDays(
-        today,
-        6,
-      ),
-    );
-
+  ] = useState(
+    addDays(
+      today,
+      6,
+    ),
+  );
 
   const [
     rangeDuration,
     setRangeDuration,
-  ] =
-    useState(120);
-
+  ] = useState(120);
 
   const [
     multiDayResults,
@@ -752,16 +653,10 @@ export default function GroupSchedule({
       MultiDayResult[] | null
     >(null);
 
-
   const [
     searchError,
     setSearchError,
-  ] =
-    useState("");
-
-
-  // If schedule data changes after an edit,
-  // delete, or new event, clear old search results.
+  ] = useState("");
 
   useEffect(() => {
     setMultiDayResults(
@@ -773,11 +668,6 @@ export default function GroupSchedule({
     busyBlocks,
     events,
   ]);
-
-
-  // ====================================================
-  // DAILY SCHEDULE
-  // ====================================================
 
   const schedule =
     useMemo(
@@ -799,14 +689,8 @@ export default function GroupSchedule({
       ],
     );
 
-
-  // ====================================================
-  // MULTI-DAY SEARCH
-  // ====================================================
-
   function findMultiDayTimes() {
     setSearchError("");
-
 
     if (
       !rangeStart ||
@@ -819,7 +703,6 @@ export default function GroupSchedule({
       return;
     }
 
-
     if (
       rangeEnd <
       rangeStart
@@ -831,13 +714,11 @@ export default function GroupSchedule({
       return;
     }
 
-
     const numberOfDays =
       getDaysBetween(
         rangeStart,
         rangeEnd,
       );
-
 
     if (
       numberOfDays >
@@ -850,10 +731,8 @@ export default function GroupSchedule({
       return;
     }
 
-
     const results:
       MultiDayResult[] = [];
-
 
     for (
       let index = 0;
@@ -867,7 +746,6 @@ export default function GroupSchedule({
           index,
         );
 
-
       const result =
         calculateDaySchedule(
           date,
@@ -876,7 +754,6 @@ export default function GroupSchedule({
           events,
           timezone,
         );
-
 
       if (
         result.freeTimes.length >
@@ -891,20 +768,13 @@ export default function GroupSchedule({
       }
     }
 
-
     setMultiDayResults(
       results,
     );
   }
 
-
-  // ====================================================
-  // TIMELINE LABELS
-  // ====================================================
-
   const hourLabels:
     number[] = [];
-
 
   for (
     let hour =
@@ -917,11 +787,6 @@ export default function GroupSchedule({
     );
   }
 
-
-  // ====================================================
-  // TIMELINE POSITION HELPERS
-  // ====================================================
-
   function getPosition(
     date: Date,
   ) {
@@ -929,18 +794,15 @@ export default function GroupSchedule({
       schedule.searchEnd.getTime() -
       schedule.searchStart.getTime();
 
-
     const elapsed =
       date.getTime() -
       schedule.searchStart.getTime();
-
 
     return (
       (elapsed / total) *
       100
     );
   }
-
 
   function getBlockStyle(
     start: Date,
@@ -952,25 +814,21 @@ export default function GroupSchedule({
         ? schedule.searchStart
         : start;
 
-
     const clippedEnd =
       end >
       schedule.searchEnd
         ? schedule.searchEnd
         : end;
 
-
     const left =
       getPosition(
         clippedStart,
       );
 
-
     const right =
       getPosition(
         clippedEnd,
       );
-
 
     return {
       left:
@@ -981,896 +839,743 @@ export default function GroupSchedule({
     };
   }
 
-
-  // ====================================================
-  // UI
-  // ====================================================
-
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-6">
+    <div className="sakura-card overflow-hidden">
 
       {/* ================================================= */}
       {/* HEADER */}
       {/* ================================================= */}
 
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">
+      <div className="border-b border-[#b9687d]/10 bg-white/35 p-6 sm:p-8">
+
+        <p className="sakura-label">
+          Find your moment
+        </p>
+
+        <h2 className="sakura-title mt-2 text-3xl font-semibold">
           Group schedule
         </h2>
 
-        <p className="mt-2 text-sm text-gray-600">
-          See everyone&apos;s schedule and
-          find times when the whole group
-          is free.
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#74676d]">
+          Compare everyone&apos;s availability and find
+          a quiet opening that works for the whole group.
         </p>
 
-        <p className="mt-1 text-xs text-gray-500">
-          Times are shown in{" "}
-          {timezone}.
+        <p className="mt-1 text-xs text-[#9d8e93]">
+          Times shown in {timezone}
         </p>
+
       </div>
 
+      <div className="p-6 sm:p-8">
 
-      {/* ================================================= */}
-      {/* DAILY VIEW CONTROLS */}
-      {/* ================================================= */}
+        {/* ================================================= */}
+        {/* DAILY CONTROLS */}
+        {/* ================================================= */}
 
-      <div className="mt-8">
+        <div>
 
-        <h3 className="text-lg font-semibold text-gray-900">
-          Daily schedule
-        </h3>
+          <h3 className="sakura-title text-2xl font-semibold">
+            Daily schedule
+          </h3>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
 
-          <div>
-            <label
-              htmlFor="scheduleDate"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Date
-            </label>
+            <div>
+              <label
+                htmlFor="scheduleDate"
+                className="block text-sm font-semibold text-[#5f5358]"
+              >
+                Date
+              </label>
 
-            <input
-              id="scheduleDate"
-              type="date"
-              value={
-                selectedDate
-              }
-              onChange={(event) =>
-                setSelectedDate(
-                  event.target.value,
-                )
-              }
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-            />
-          </div>
-
-
-          <div>
-            <label
-              htmlFor="duration"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Minimum free time
-            </label>
-
-            <select
-              id="duration"
-              value={
-                durationMinutes
-              }
-              onChange={(event) =>
-                setDurationMinutes(
-                  Number(
+              <input
+                id="scheduleDate"
+                type="date"
+                value={selectedDate}
+                onChange={(event) =>
+                  setSelectedDate(
                     event.target.value,
-                  ),
-                )
-              }
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-            >
-              <option value={30}>
-                30 minutes
-              </option>
+                  )
+                }
+                className="sakura-input mt-2 px-4 py-3"
+              />
+            </div>
 
-              <option value={60}>
-                1 hour
-              </option>
+            <div>
+              <label
+                htmlFor="duration"
+                className="block text-sm font-semibold text-[#5f5358]"
+              >
+                Minimum free time
+              </label>
 
-              <option value={90}>
-                1.5 hours
-              </option>
+              <select
+                id="duration"
+                value={durationMinutes}
+                onChange={(event) =>
+                  setDurationMinutes(
+                    Number(
+                      event.target.value,
+                    ),
+                  )
+                }
+                className="sakura-input mt-2 px-4 py-3"
+              >
+                <option value={30}>
+                  30 minutes
+                </option>
 
-              <option value={120}>
-                2 hours
-              </option>
+                <option value={60}>
+                  1 hour
+                </option>
 
-              <option value={180}>
-                3 hours
-              </option>
-            </select>
+                <option value={90}>
+                  1.5 hours
+                </option>
+
+                <option value={120}>
+                  2 hours
+                </option>
+
+                <option value={180}>
+                  3 hours
+                </option>
+              </select>
+            </div>
+
           </div>
 
         </div>
 
-      </div>
+        {/* ================================================= */}
+        {/* TIMELINE */}
+        {/* ================================================= */}
 
+        <div className="mt-10 overflow-x-auto rounded-2xl border border-[#b9687d]/10 bg-white/45 p-5">
 
-      {/* ================================================= */}
-      {/* VISUAL TIMELINE */}
-      {/* ================================================= */}
+          <div className="min-w-[850px]">
 
-      <div className="mt-10 overflow-x-auto">
+            <div className="ml-28 flex">
 
-        <div className="min-w-[850px]">
-
-
-          {/* HOURS */}
-
-          <div className="ml-28 flex">
-
-            {hourLabels
-              .slice(
-                0,
-                -1,
-              )
-              .map(
-                (hour) => (
-
-                  <div
-                    key={
-                      hour
-                    }
-                    className="flex-1 text-xs text-gray-500"
-                  >
-                    {formatHour(
-                      hour,
-                    )}
-                  </div>
-
-                ),
-              )}
-
-          </div>
-
-
-          {/* MEMBERS */}
-
-          <div className="mt-3 space-y-3">
-
-            {members.map(
-              (member) => {
-
-                const memberBlocks =
-                  schedule.dailyBusyBlocks.filter(
-                    (block) =>
-                      block.userId ===
-                      member.userId,
-                  );
-
-
-                return (
-                  <div
-                    key={
-                      member.userId
-                    }
-                    className="flex items-center"
-                  >
-
-                    <div className="w-28 shrink-0 pr-4 text-sm font-medium text-gray-900">
-                      {
-                        member.displayName
-                      }
-                    </div>
-
-
-                    <div className="relative h-12 flex-1 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-
-
-                      <div className="absolute inset-0 flex">
-
-                        {hourLabels
-                          .slice(
-                            0,
-                            -1,
-                          )
-                          .map(
-                            (hour) => (
-
-                              <div
-                                key={
-                                  hour
-                                }
-                                className="flex-1 border-r border-gray-200 last:border-r-0"
-                              />
-
-                            ),
-                          )}
-
-                      </div>
-
-
-                      {memberBlocks.map(
-                        (block) => (
-
-                          <div
-                            key={
-                              block.id
-                            }
-                            className="absolute bottom-1 top-1 rounded-md bg-blue-600 px-2 text-xs font-medium text-white"
-                            style={
-                              getBlockStyle(
-                                block.start,
-                                block.end,
-                              )
-                            }
-                            title={`${formatTime(
-                              block.start,
-                              timezone,
-                            )} – ${formatTime(
-                              block.end,
-                              timezone,
-                            )}`}
-                          >
-
-                            <span className="flex h-full items-center overflow-hidden whitespace-nowrap">
-                              Busy
-                            </span>
-
-                          </div>
-
-                        ),
+              {hourLabels
+                .slice(
+                  0,
+                  -1,
+                )
+                .map(
+                  (hour) => (
+                    <div
+                      key={hour}
+                      className="flex-1 text-xs text-[#9d8e93]"
+                    >
+                      {formatHour(
+                        hour,
                       )}
-
                     </div>
+                  ),
+                )}
 
-                  </div>
-                );
-
-              },
-            )}
-
-          </div>
-
-
-          {/* EVENTS */}
-
-          <div className="mt-5 flex items-center">
-
-            <div className="w-28 shrink-0 pr-4 text-sm font-semibold text-purple-700">
-              Events
             </div>
 
+            {/* MEMBERS */}
 
-            <div className="relative h-12 flex-1 overflow-hidden rounded-lg border border-purple-200 bg-gray-50">
+            <div className="mt-4 space-y-3">
 
+              {members.map(
+                (member) => {
+                  const memberBlocks =
+                    schedule.dailyBusyBlocks.filter(
+                      (block) =>
+                        block.userId ===
+                        member.userId,
+                    );
 
-              <div className="absolute inset-0 flex">
+                  return (
+                    <div
+                      key={member.userId}
+                      className="flex items-center"
+                    >
+                      <div className="w-28 shrink-0 pr-4 text-sm font-semibold text-[#51474b]">
+                        {member.displayName}
+                      </div>
 
-                {hourLabels
-                  .slice(
-                    0,
-                    -1,
-                  )
-                  .map(
-                    (hour) => (
+                      <div className="relative h-12 flex-1 overflow-hidden rounded-xl border border-[#b9687d]/10 bg-[#fffaf9]">
 
-                      <div
-                        key={
-                          hour
-                        }
-                        className="flex-1 border-r border-gray-200 last:border-r-0"
-                      />
+                        <div className="absolute inset-0 flex">
 
-                    ),
-                  )}
+                          {hourLabels
+                            .slice(
+                              0,
+                              -1,
+                            )
+                            .map(
+                              (hour) => (
+                                <div
+                                  key={hour}
+                                  className="flex-1 border-r border-[#b9687d]/10 last:border-r-0"
+                                />
+                              ),
+                            )}
+
+                        </div>
+
+                        {memberBlocks.map(
+                          (block) => (
+                            <div
+                              key={block.id}
+                              className="schedule-busy absolute bottom-1.5 top-1.5 rounded-lg px-2 text-xs font-semibold text-white shadow-sm"
+                              style={
+                                getBlockStyle(
+                                  block.start,
+                                  block.end,
+                                )
+                              }
+                              title={`${formatTime(
+                                block.start,
+                                timezone,
+                              )} – ${formatTime(
+                                block.end,
+                                timezone,
+                              )}`}
+                            >
+                              <span className="flex h-full items-center overflow-hidden whitespace-nowrap">
+                                Busy
+                              </span>
+                            </div>
+                          ),
+                        )}
+
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+
+            </div>
+
+            {/* EVENTS */}
+
+            <div className="mt-5 flex items-center">
+
+              <div className="w-28 shrink-0 pr-4 text-sm font-semibold text-[#725576]">
+                Events
+              </div>
+
+              <div className="relative h-12 flex-1 overflow-hidden rounded-xl border border-[#86678a]/15 bg-[#fffaf9]">
+
+                <div className="absolute inset-0 flex">
+
+                  {hourLabels
+                    .slice(
+                      0,
+                      -1,
+                    )
+                    .map(
+                      (hour) => (
+                        <div
+                          key={hour}
+                          className="flex-1 border-r border-[#86678a]/10 last:border-r-0"
+                        />
+                      ),
+                    )}
+
+                </div>
+
+                {schedule.dailyEvents.map(
+                  (event) => (
+                    <div
+                      key={event.id}
+                      className="schedule-event absolute bottom-1.5 top-1.5 rounded-lg px-2 text-xs font-semibold text-white shadow-sm"
+                      style={
+                        getBlockStyle(
+                          event.start,
+                          event.end,
+                        )
+                      }
+                      title={`${event.title}: ${formatTime(
+                        event.start,
+                        timezone,
+                      )} – ${formatTime(
+                        event.end,
+                        timezone,
+                      )}`}
+                    >
+                      <span className="flex h-full items-center overflow-hidden whitespace-nowrap">
+                        {event.title}
+                      </span>
+                    </div>
+                  ),
+                )}
 
               </div>
 
+            </div>
+
+            {/* FREE */}
+
+            <div className="mt-5 flex items-center">
+
+              <div className="w-28 shrink-0 pr-4 text-sm font-semibold text-[#718067]">
+                Everyone free
+              </div>
+
+              <div className="relative h-12 flex-1 overflow-hidden rounded-xl border border-[#a9b59f]/25 bg-[#fffaf9]">
+
+                <div className="absolute inset-0 flex">
+
+                  {hourLabels
+                    .slice(
+                      0,
+                      -1,
+                    )
+                    .map(
+                      (hour) => (
+                        <div
+                          key={hour}
+                          className="flex-1 border-r border-[#a9b59f]/15 last:border-r-0"
+                        />
+                      ),
+                    )}
+
+                </div>
+
+                {schedule.freeTimes.map(
+                  (
+                    range,
+                    index,
+                  ) => (
+                    <div
+                      key={`${range.start.toISOString()}-${index}`}
+                      className="schedule-free absolute bottom-1.5 top-1.5 rounded-lg"
+                      style={
+                        getBlockStyle(
+                          range.start,
+                          range.end,
+                        )
+                      }
+                      title={`${formatTime(
+                        range.start,
+                        timezone,
+                      )} – ${formatTime(
+                        range.end,
+                        timezone,
+                      )}`}
+                    />
+                  ),
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* ================================================= */}
+        {/* EVENTS */}
+        {/* ================================================= */}
+
+        <section className="mt-10">
+
+          <div className="flex items-center gap-3">
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eee6ef] text-[#725576]">
+              ✦
+            </div>
+
+            <div>
+              <h3 className="sakura-title text-xl font-semibold">
+                Scheduled events
+              </h3>
+
+              <p className="text-sm text-[#8c7c82]">
+                Plans already made for this day.
+              </p>
+            </div>
+
+          </div>
+
+          {schedule.dailyEvents.length ===
+          0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-[#86678a]/20 bg-[#f9f5fa]/55 p-6 text-center">
+
+              <p className="text-sm text-[#8c7c82]">
+                No group events on this date.
+              </p>
+
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
 
               {schedule.dailyEvents.map(
                 (event) => (
-
                   <div
-                    key={
-                      event.id
-                    }
-                    className="absolute bottom-1 top-1 rounded-md bg-purple-600 px-2 text-xs font-medium text-white"
-                    style={
-                      getBlockStyle(
-                        event.start,
-                        event.end,
-                      )
-                    }
-                    title={`${event.title}: ${formatTime(
-                      event.start,
-                      timezone,
-                    )} – ${formatTime(
-                      event.end,
-                      timezone,
-                    )}`}
+                    key={event.id}
+                    className="rounded-2xl border border-[#86678a]/15 bg-[#f8f3f9]/75 p-5"
                   >
+                    <p className="sakura-title text-lg font-semibold text-[#67506b]">
+                      {event.title}
+                    </p>
 
-                    <span className="flex h-full items-center overflow-hidden whitespace-nowrap">
-                      {
-                        event.title
-                      }
-                    </span>
+                    <p className="mt-1 text-sm text-[#826786]">
+                      {formatTime(
+                        event.start,
+                        timezone,
+                      )}
+
+                      {" – "}
+
+                      {formatTime(
+                        event.end,
+                        timezone,
+                      )}
+                    </p>
+
+                    {event.canManage && (
+                      <EventActions
+                        eventId={event.id}
+                        title={event.title}
+                        startsAt={event.startsAt}
+                        endsAt={event.endsAt}
+                        timezone={timezone}
+                      />
+                    )}
 
                   </div>
-
                 ),
               )}
 
             </div>
+          )}
+
+        </section>
+
+        {/* ================================================= */}
+        {/* AVAILABLE */}
+        {/* ================================================= */}
+
+        <section className="mt-10">
+
+          <div className="flex items-center gap-3">
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e6ebdf] text-[#718067]">
+              ✓
+            </div>
+
+            <div>
+              <h3 className="sakura-title text-xl font-semibold">
+                Available times
+              </h3>
+
+              <p className="text-sm text-[#8c7c82]">
+                Searching between 9:00 AM and 11:00 PM.
+              </p>
+            </div>
 
           </div>
 
+          {schedule.freeTimes.length ===
+          0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-[#a9b59f]/30 bg-[#f5f7f2]/55 p-7 text-center">
 
-          {/* EVERYONE FREE */}
+              <p className="font-semibold text-[#4b5546]">
+                No matching free times
+              </p>
 
-          <div className="mt-5 flex items-center">
+              <p className="mt-2 text-sm text-[#8d9987]">
+                Try a shorter duration or another date.
+              </p>
 
-            <div className="w-28 shrink-0 pr-4 text-sm font-semibold text-green-700">
-              Everyone free
             </div>
-
-
-            <div className="relative h-12 flex-1 overflow-hidden rounded-lg border border-green-200 bg-gray-50">
-
-
-              <div className="absolute inset-0 flex">
-
-                {hourLabels
-                  .slice(
-                    0,
-                    -1,
-                  )
-                  .map(
-                    (hour) => (
-
-                      <div
-                        key={
-                          hour
-                        }
-                        className="flex-1 border-r border-gray-200 last:border-r-0"
-                      />
-
-                    ),
-                  )}
-
-              </div>
-
+          ) : (
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
 
               {schedule.freeTimes.map(
                 (
                   range,
                   index,
                 ) => (
-
                   <div
-                    key={`${range.start.toISOString()}-${index}`}
-                    className="absolute bottom-1 top-1 rounded-md bg-green-200"
-                    style={
-                      getBlockStyle(
+                    key={`${range.end.toISOString()}-${index}`}
+                    className="rounded-2xl border border-[#a9b59f]/25 bg-[#f5f7f2]/70 p-5"
+                  >
+                    <p className="sakura-title text-lg font-semibold text-[#4b5546]">
+                      {formatTime(
                         range.start,
-                        range.end,
-                      )
-                    }
-                    title={`${formatTime(
-                      range.start,
-                      timezone,
-                    )} – ${formatTime(
-                      range.end,
-                      timezone,
-                    )}`}
-                  />
+                        timezone,
+                      )}
 
+                      {" – "}
+
+                      {formatTime(
+                        range.end,
+                        timezone,
+                      )}
+                    </p>
+
+                    <p className="mt-1 text-sm text-[#718067]">
+                      Everyone is available
+                    </p>
+
+                    <ScheduleEventButton
+                      groupId={groupId}
+                      slotStart={range.start}
+                      slotEnd={range.end}
+                      timezone={timezone}
+                    />
+
+                  </div>
                 ),
               )}
 
             </div>
+          )}
+
+        </section>
+
+        {/* ================================================= */}
+        {/* MULTI DAY */}
+        {/* ================================================= */}
+
+        <section className="mt-12 border-t border-[#b9687d]/10 pt-10">
+
+          <div className="max-w-2xl">
+
+            <p className="sakura-label">
+              Look ahead
+            </p>
+
+            <h3 className="sakura-title mt-2 text-2xl font-semibold">
+              Find a time across multiple days
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-[#74676d]">
+              Search a date range and let NoClash find
+              every day with enough shared free time.
+            </p>
 
           </div>
 
-        </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
 
-      </div>
+            <div>
+              <label
+                htmlFor="rangeStart"
+                className="block text-sm font-semibold text-[#5f5358]"
+              >
+                From
+              </label>
 
+              <input
+                id="rangeStart"
+                type="date"
+                value={rangeStart}
+                onChange={(event) =>
+                  setRangeStart(
+                    event.target.value,
+                  )
+                }
+                className="sakura-input mt-2 px-4 py-3"
+              />
+            </div>
 
-      {/* ================================================= */}
-      {/* SCHEDULED EVENTS */}
-      {/* ================================================= */}
+            <div>
+              <label
+                htmlFor="rangeEnd"
+                className="block text-sm font-semibold text-[#5f5358]"
+              >
+                To
+              </label>
 
-      <div className="mt-10">
+              <input
+                id="rangeEnd"
+                type="date"
+                value={rangeEnd}
+                onChange={(event) =>
+                  setRangeEnd(
+                    event.target.value,
+                  )
+                }
+                className="sakura-input mt-2 px-4 py-3"
+              />
+            </div>
 
-        <h3 className="text-lg font-semibold text-gray-900">
-          Scheduled events
-        </h3>
+            <div>
+              <label
+                htmlFor="rangeDuration"
+                className="block text-sm font-semibold text-[#5f5358]"
+              >
+                Need at least
+              </label>
 
+              <select
+                id="rangeDuration"
+                value={rangeDuration}
+                onChange={(event) =>
+                  setRangeDuration(
+                    Number(
+                      event.target.value,
+                    ),
+                  )
+                }
+                className="sakura-input mt-2 px-4 py-3"
+              >
+                <option value={30}>
+                  30 minutes
+                </option>
 
-        {schedule.dailyEvents.length ===
-        0 ? (
+                <option value={60}>
+                  1 hour
+                </option>
 
-          <p className="mt-3 text-sm text-gray-500">
-            No group events on this date.
+                <option value={90}>
+                  1.5 hours
+                </option>
+
+                <option value={120}>
+                  2 hours
+                </option>
+
+                <option value={180}>
+                  3 hours
+                </option>
+
+                <option value={240}>
+                  4 hours
+                </option>
+              </select>
+            </div>
+
+          </div>
+
+          <p className="mt-3 text-xs text-[#9d8e93]">
+            Searches 9:00 AM–11:00 PM each day, up to
+            31 days at once.
           </p>
 
-        ) : (
+          {searchError && (
+            <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">
+              {searchError}
+            </p>
+          )}
 
-          <div className="mt-4 space-y-3">
+          <button
+            type="button"
+            onClick={findMultiDayTimes}
+            className="sakura-button mt-5 px-6 py-3"
+          >
+            Find Times
+          </button>
 
-            {schedule.dailyEvents.map(
-              (event) => (
+          {multiDayResults !==
+            null && (
+            <div className="mt-8">
 
-                <div
-                  key={
-                    event.id
-                  }
-                  className="rounded-lg border border-purple-200 bg-purple-50 p-4"
-                >
+              {multiDayResults.length ===
+              0 ? (
+                <div className="rounded-2xl border border-dashed border-[#a9b59f]/30 bg-[#f5f7f2]/55 p-8 text-center">
 
-                  <p className="font-semibold text-purple-900">
-                    {
-                      event.title
-                    }
+                  <p className="sakura-title text-lg font-semibold">
+                    No matching times found
                   </p>
 
-
-                  <p className="mt-1 text-sm text-purple-700">
-
-                    {formatTime(
-                      event.start,
-                      timezone,
-                    )}
-
-                    {" – "}
-
-                    {formatTime(
-                      event.end,
-                      timezone,
-                    )}
-
+                  <p className="mt-2 text-sm text-[#8c7c82]">
+                    Try a shorter duration or wider date
+                    range.
                   </p>
 
+                </div>
+              ) : (
+                <div className="space-y-5">
 
-                  {event.canManage && (
+                  <div>
+                    <h4 className="sakura-title text-xl font-semibold">
+                      Best available times
+                    </h4>
 
-                    <EventActions
-                      eventId={
-                        event.id
-                      }
-                      title={
-                        event.title
-                      }
-                      startsAt={
-                        event.startsAt
-                      }
-                      endsAt={
-                        event.endsAt
-                      }
-                      timezone={
-                        timezone
-                      }
-                    />
+                    <p className="mt-1 text-sm text-[#8c7c82]">
+                      Found availability on{" "}
+                      {multiDayResults.length}{" "}
+                      day
+                      {multiDayResults.length ===
+                      1
+                        ? ""
+                        : "s"}
+                      .
+                    </p>
+                  </div>
 
+                  {multiDayResults.map(
+                    (dayResult) => (
+                      <div
+                        key={dayResult.date}
+                        className="rounded-2xl border border-[#b9687d]/10 bg-white/45 p-5"
+                      >
+
+                        <h5 className="sakura-title text-lg font-semibold">
+                          {formatDateLabel(
+                            dayResult.date,
+                          )}
+                        </h5>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+                          {dayResult.freeTimes.map(
+                            (
+                              range,
+                              index,
+                            ) => (
+                              <div
+                                key={`${range.start.toISOString()}-${index}`}
+                                className="rounded-xl border border-[#a9b59f]/25 bg-[#f5f7f2]/75 p-4"
+                              >
+                                <p className="font-semibold text-[#4b5546]">
+                                  {formatTime(
+                                    range.start,
+                                    timezone,
+                                  )}
+
+                                  {" – "}
+
+                                  {formatTime(
+                                    range.end,
+                                    timezone,
+                                  )}
+                                </p>
+
+                                <p className="mt-1 text-sm text-[#718067]">
+                                  Everyone is available
+                                </p>
+
+                                <ScheduleEventButton
+                                  groupId={groupId}
+                                  slotStart={range.start}
+                                  slotEnd={range.end}
+                                  timezone={timezone}
+                                />
+
+                              </div>
+                            ),
+                          )}
+
+                        </div>
+
+                      </div>
+                    ),
                   )}
 
                 </div>
+              )}
 
-              ),
-            )}
+            </div>
+          )}
 
-          </div>
-
-        )}
-
-      </div>
-
-
-      {/* ================================================= */}
-      {/* AVAILABLE TIMES FOR SELECTED DAY */}
-      {/* ================================================= */}
-
-      <div className="mt-10">
-
-        <h3 className="text-lg font-semibold text-gray-900">
-          Available times
-        </h3>
-
-        <p className="mt-1 text-sm text-gray-500">
-          Searching between 9:00 AM and
-          11:00 PM.
-        </p>
-
-
-        {schedule.freeTimes.length ===
-        0 ? (
-
-          <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-6 text-center">
-
-            <p className="font-medium text-gray-900">
-              No matching free times.
-            </p>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Try a shorter duration
-              or another date.
-            </p>
-
-          </div>
-
-        ) : (
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-
-            {schedule.freeTimes.map(
-              (
-                range,
-                index,
-              ) => (
-
-                <div
-                  key={`${range.end.toISOString()}-${index}`}
-                  className="rounded-lg border border-green-200 bg-green-50 p-5"
-                >
-
-                  <p className="font-semibold text-green-900">
-
-                    {formatTime(
-                      range.start,
-                      timezone,
-                    )}
-
-                    {" – "}
-
-                    {formatTime(
-                      range.end,
-                      timezone,
-                    )}
-
-                  </p>
-
-
-                  <p className="mt-1 text-sm text-green-700">
-                    Everyone is available
-                  </p>
-
-
-                  <ScheduleEventButton
-                    groupId={
-                      groupId
-                    }
-                    slotStart={
-                      range.start
-                    }
-                    slotEnd={
-                      range.end
-                    }
-                    timezone={
-                      timezone
-                    }
-                  />
-
-                </div>
-
-              ),
-            )}
-
-          </div>
-
-        )}
+        </section>
 
       </div>
 
-
-      {/* ================================================= */}
-      {/* MULTI-DAY SEARCH */}
-      {/* ================================================= */}
-
-      <div className="mt-14 border-t border-gray-200 pt-10">
-
-        <h3 className="text-2xl font-bold text-gray-900">
-          Find a time across multiple days
-        </h3>
-
-
-        <p className="mt-2 text-sm text-gray-600">
-          Choose a date range and NoClash
-          will search every day for times
-          when the entire group is free.
-        </p>
-
-
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-
-
-          {/* FROM */}
-
-          <div>
-
-            <label
-              htmlFor="rangeStart"
-              className="block text-sm font-medium text-gray-700"
-            >
-              From
-            </label>
-
-            <input
-              id="rangeStart"
-              type="date"
-              value={
-                rangeStart
-              }
-              onChange={(event) =>
-                setRangeStart(
-                  event.target.value,
-                )
-              }
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-            />
-
-          </div>
-
-
-          {/* TO */}
-
-          <div>
-
-            <label
-              htmlFor="rangeEnd"
-              className="block text-sm font-medium text-gray-700"
-            >
-              To
-            </label>
-
-            <input
-              id="rangeEnd"
-              type="date"
-              value={
-                rangeEnd
-              }
-              onChange={(event) =>
-                setRangeEnd(
-                  event.target.value,
-                )
-              }
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-            />
-
-          </div>
-
-
-          {/* DURATION */}
-
-          <div>
-
-            <label
-              htmlFor="rangeDuration"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Need at least
-            </label>
-
-            <select
-              id="rangeDuration"
-              value={
-                rangeDuration
-              }
-              onChange={(event) =>
-                setRangeDuration(
-                  Number(
-                    event.target.value,
-                  ),
-                )
-              }
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-            >
-
-              <option value={30}>
-                30 minutes
-              </option>
-
-              <option value={60}>
-                1 hour
-              </option>
-
-              <option value={90}>
-                1.5 hours
-              </option>
-
-              <option value={120}>
-                2 hours
-              </option>
-
-              <option value={180}>
-                3 hours
-              </option>
-
-              <option value={240}>
-                4 hours
-              </option>
-
-            </select>
-
-          </div>
-
-        </div>
-
-
-        <p className="mt-3 text-xs text-gray-500">
-          NoClash searches between
-          9:00 AM and 11:00 PM each day.
-          You can search up to 31 days at
-          once.
-        </p>
-
-
-        {searchError && (
-
-          <p className="mt-4 text-sm text-red-600">
-            {searchError}
-          </p>
-
-        )}
-
-
-        <button
-          type="button"
-          onClick={
-            findMultiDayTimes
-          }
-          className="mt-5 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-        >
-          Find Times
-        </button>
-
-
-        {/* =============================================== */}
-        {/* MULTI-DAY RESULTS */}
-        {/* =============================================== */}
-
-        {multiDayResults !==
-          null && (
-
-          <div className="mt-8">
-
-
-            {multiDayResults.length ===
-            0 ? (
-
-              <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-
-                <p className="font-semibold text-gray-900">
-                  No matching times found.
-                </p>
-
-                <p className="mt-2 text-sm text-gray-500">
-                  Try a shorter meeting
-                  duration or a wider date
-                  range.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="space-y-6">
-
-
-                <div>
-
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    Best available times
-                  </h4>
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    Found availability
-                    on{" "}
-                    {
-                      multiDayResults.length
-                    }{" "}
-                    day
-                    {multiDayResults.length ===
-                    1
-                      ? ""
-                      : "s"}
-                    .
-                  </p>
-
-                </div>
-
-
-                {multiDayResults.map(
-                  (dayResult) => (
-
-                    <div
-                      key={
-                        dayResult.date
-                      }
-                      className="rounded-xl border border-gray-200 bg-gray-50 p-5"
-                    >
-
-                      <h5 className="text-lg font-semibold text-gray-900">
-                        {formatDateLabel(
-                          dayResult.date,
-                        )}
-                      </h5>
-
-
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-
-                        {dayResult.freeTimes.map(
-                          (
-                            range,
-                            index,
-                          ) => (
-
-                            <div
-                              key={`${range.start.toISOString()}-${index}`}
-                              className="rounded-lg border border-green-200 bg-green-50 p-4"
-                            >
-
-                              <p className="font-semibold text-green-900">
-
-                                {formatTime(
-                                  range.start,
-                                  timezone,
-                                )}
-
-                                {" – "}
-
-                                {formatTime(
-                                  range.end,
-                                  timezone,
-                                )}
-
-                              </p>
-
-
-                              <p className="mt-1 text-sm text-green-700">
-                                Everyone is
-                                available
-                              </p>
-
-
-                              <ScheduleEventButton
-                                groupId={
-                                  groupId
-                                }
-                                slotStart={
-                                  range.start
-                                }
-                                slotEnd={
-                                  range.end
-                                }
-                                timezone={
-                                  timezone
-                                }
-                              />
-
-                            </div>
-
-                          ),
-                        )}
-
-                      </div>
-
-                    </div>
-
-                  ),
-                )}
-
-              </div>
-
-            )}
-
-          </div>
-
-        )}
-
-      </div>
-
-    </section>
+    </div>
   );
 }

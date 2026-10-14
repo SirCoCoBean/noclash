@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
-
 type EventActionsProps = {
   eventId: string;
   title: string;
@@ -17,7 +16,6 @@ type EventActionsProps = {
   endsAt: string;
   timezone: string;
 };
-
 
 function toLocalInputValue(
   dateString: string,
@@ -36,7 +34,6 @@ function toLocalInputValue(
     .toISOString()
     .slice(0, 16);
 }
-
 
 export default function EventActions({
   eventId,
@@ -65,14 +62,18 @@ export default function EventActions({
     editedStartsAt,
     setEditedStartsAt,
   ] = useState(
-    toLocalInputValue(startsAt),
+    toLocalInputValue(
+      startsAt,
+    ),
   );
 
   const [
     editedEndsAt,
     setEditedEndsAt,
   ] = useState(
-    toLocalInputValue(endsAt),
+    toLocalInputValue(
+      endsAt,
+    ),
   );
 
   const [
@@ -89,11 +90,6 @@ export default function EventActions({
     errorMessage,
     setErrorMessage,
   ] = useState("");
-
-
-  // ======================================================
-  // EDIT EVENT
-  // ======================================================
 
   async function handleEdit(
     event: FormEvent<HTMLFormElement>,
@@ -114,25 +110,14 @@ export default function EventActions({
     }
 
     const startDate =
-      new Date(editedStartsAt);
-
-    const endDate =
-      new Date(editedEndsAt);
-
-    if (
-      Number.isNaN(
-        startDate.getTime(),
-      ) ||
-      Number.isNaN(
-        endDate.getTime(),
-      )
-    ) {
-      setErrorMessage(
-        "Please enter valid dates and times.",
+      new Date(
+        editedStartsAt,
       );
 
-      return;
-    }
+    const endDate =
+      new Date(
+        editedEndsAt,
+      );
 
     if (
       endDate <= startDate
@@ -180,11 +165,6 @@ export default function EventActions({
     router.refresh();
   }
 
-
-  // ======================================================
-  // DELETE EVENT
-  // ======================================================
-
   async function handleDelete() {
     const confirmed =
       window.confirm(
@@ -220,40 +200,33 @@ export default function EventActions({
     router.refresh();
   }
 
-
-  // ======================================================
-  // NORMAL BUTTONS
-  // ======================================================
-
   if (!isEditing) {
     return (
       <div className="mt-4">
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
+
           <button
             type="button"
             onClick={() =>
               setIsEditing(true)
             }
-            className="text-sm font-semibold text-purple-700 hover:text-purple-900"
+            className="rounded-xl border border-[#86678a]/20 bg-white/70 px-4 py-2 text-sm font-semibold text-[#725576] transition hover:bg-[#f8f3f9]"
           >
             Edit
           </button>
 
           <button
             type="button"
-            onClick={
-              handleDelete
-            }
-            disabled={
-              isDeleting
-            }
-            className="text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="rounded-xl border border-[#e9a6b8]/25 bg-white/70 px-4 py-2 text-sm font-semibold text-[#b9687d] transition hover:bg-[#fff7f9] disabled:opacity-50"
           >
             {isDeleting
               ? "Deleting..."
               : "Delete"}
           </button>
+
         </div>
 
         {errorMessage && (
@@ -266,93 +239,77 @@ export default function EventActions({
     );
   }
 
-
-  // ======================================================
-  // EDIT FORM
-  // ======================================================
-
   return (
     <form
       onSubmit={handleEdit}
-      className="mt-4 border-t border-purple-200 pt-4"
+      className="mt-4 rounded-xl border border-[#86678a]/15 bg-white/65 p-4"
     >
 
-      <p className="font-semibold text-gray-900">
+      <p className="sakura-title font-semibold">
         Edit event
       </p>
 
-      <p className="mt-1 text-xs text-gray-500">
-        Times shown in{" "}
-        {timezone}.
+      <p className="mt-1 text-xs text-[#8c7c82]">
+        Times shown in {timezone}.
       </p>
 
-
-      {/* TITLE */}
-
       <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-700">
+
+        <label className="block text-sm font-semibold text-[#5f5358]">
           Event name
         </label>
 
         <input
           type="text"
-          value={
-            editedTitle
-          }
+          value={editedTitle}
           onChange={(event) =>
             setEditedTitle(
               event.target.value,
             )
           }
           maxLength={100}
-          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+          className="sakura-input mt-2 px-3 py-2"
         />
+
       </div>
 
-
-      {/* START */}
-
       <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-700">
+
+        <label className="block text-sm font-semibold text-[#5f5358]">
           Start
         </label>
 
         <input
           type="datetime-local"
-          value={
-            editedStartsAt
-          }
+          value={editedStartsAt}
           onChange={(event) =>
             setEditedStartsAt(
               event.target.value,
             )
           }
-          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+          className="sakura-input mt-2 px-3 py-2"
         />
+
       </div>
 
-
-      {/* END */}
-
       <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-700">
+
+        <label className="block text-sm font-semibold text-[#5f5358]">
           End
         </label>
 
         <input
           type="datetime-local"
-          value={
-            editedEndsAt
-          }
+          value={editedEndsAt}
           onChange={(event) =>
             setEditedEndsAt(
               event.target.value,
             )
           }
-          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+          className="sakura-input mt-2 px-3 py-2"
         />
-      </div>
 
+      </div>
 
       {errorMessage && (
         <p className="mt-3 text-sm text-red-600">
@@ -360,19 +317,17 @@ export default function EventActions({
         </p>
       )}
 
-
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
 
         <button
           type="submit"
           disabled={isSaving}
-          className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50"
+          className="sakura-button px-4 py-2 text-sm disabled:opacity-50"
         >
           {isSaving
             ? "Saving..."
             : "Save Changes"}
         </button>
-
 
         <button
           type="button"
@@ -397,7 +352,7 @@ export default function EventActions({
               ),
             );
           }}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          className="sakura-button-secondary px-4 py-2 text-sm"
         >
           Cancel
         </button>
