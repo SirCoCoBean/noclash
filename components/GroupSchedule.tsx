@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -8,6 +9,10 @@ import {
 import EventActions from "@/components/EventActions";
 import ScheduleEventButton from "@/components/ScheduleEventButton";
 
+
+// ======================================================
+// TYPES
+// ======================================================
 
 type Member = {
   userId: string;
@@ -61,26 +66,315 @@ type DisplayEvent =
   };
 
 
+type DaySchedule = {
+  searchStart: Date;
+  searchEnd: Date;
+  dailyBusyBlocks: DisplayBusyBlock[];
+  dailyEvents: DisplayEvent[];
+  freeTimes: TimeRange[];
+};
+
+
+type MultiDayResult = {
+  date: string;
+  freeTimes: TimeRange[];
+};
+
+
+// ======================================================
+// SCHEDULING HOURS
+// ======================================================
+
 const START_HOUR = 9;
 const END_HOUR = 23;
 
+const MAX_SEARCH_DAYS = 31;
 
-function getTodayForDateInput() {
-  const now =
-    new Date();
 
-  const localTime =
-    new Date(
-      now.getTime() -
-        now.getTimezoneOffset() *
-          60_000,
+// ======================================================
+// TIMEZONE HELPERS
+// ======================================================
+
+function getTimeZoneParts(
+  date: Date,
+  timezone: string,
+) {
+  const formatter =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      },
     );
 
-  return localTime
+  const parts =
+    formatter.formatToParts(date);
+
+  const values:
+    Record<string, string> = {};
+
+  for (const part of parts) {
+    if (
+      part.type !== "literal"
+    ) {
+      values[part.type] =
+        part.value;
+    }
+  }
+
+  return {
+    year:
+      Number(values.year),
+
+    month:
+      Number(values.month),
+
+    day:
+      Number(values.day),
+
+    hour:
+      Number(values.hour),
+
+    minute:
+      Number(values.minute),
+
+    second:
+      Number(values.second),
+  };
+}
+
+
+// Convert:
+// October 14 + 9:00 AM + America/New_York
+//
+// into the real absolute JavaScript Date.
+//
+// This allows the scheduling algorithm to work
+// with the user's saved timezone instead of
+// assuming UTC.
+
+function dateAtTimeInZone(
+  dateString: string,
+  hour: number,
+  minute: number,
+  timezone: string,
+) {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    dateString
+      .split("-")
+      .map(Number);
+
+  const desiredTime =
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      0,
+    );
+
+  let guess =
+    desiredTime;
+
+  // Run a few adjustments so the generated
+  // absolute Date corresponds to the desired
+  // wall-clock time in the requested timezone.
+
+  for (
+    let attempt = 0;
+    attempt < 3;
+    attempt++
+  ) {
+    const parts =
+      getTimeZoneParts(
+        new Date(guess),
+        timezone,
+      );
+
+    const actualTime =
+      Date.UTC(
+        parts.year,
+        parts.month - 1,
+        parts.day,
+        parts.hour,
+        parts.minute,
+        parts.second,
+      );
+
+    const difference =
+      desiredTime -
+      actualTime;
+
+    guess +=
+      difference;
+
+    if (
+      Math.abs(difference) <
+      1000
+    ) {
+      break;
+    }
+  }
+
+  return new Date(guess);
+}
+
+
+// ======================================================
+// DATE HELPERS
+// ======================================================
+
+function getDateStringInTimeZone(
+  date: Date,
+  timezone: string,
+) {
+  const formatter =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      },
+    );
+
+  const parts =
+    formatter.formatToParts(date);
+
+  let year = "";
+  let month = "";
+  let day = "";
+
+  for (const part of parts) {
+    if (
+      part.type === "year"
+    ) {
+      year = part.value;
+    }
+
+    if (
+      part.type === "month"
+    ) {
+      month = part.value;
+    }
+
+    if (
+      part.type === "day"
+    ) {
+      day = part.value;
+    }
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+
+function addDays(
+  dateString: string,
+  numberOfDays: number,
+) {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    dateString
+      .split("-")
+      .map(Number);
+
+  const date =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day + numberOfDays,
+      ),
+    );
+
+  return date
     .toISOString()
     .slice(0, 10);
 }
 
+
+function getDaysBetween(
+  startDate: string,
+  endDate: string,
+) {
+  const start =
+    new Date(
+      `${startDate}T00:00:00Z`,
+    );
+
+  const end =
+    new Date(
+      `${endDate}T00:00:00Z`,
+    );
+
+  const milliseconds =
+    end.getTime() -
+    start.getTime();
+
+  return (
+    Math.floor(
+      milliseconds /
+        (24 * 60 * 60 * 1000),
+    ) + 1
+  );
+}
+
+
+function formatDateLabel(
+  dateString: string,
+) {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    dateString
+      .split("-")
+      .map(Number);
+
+  const date =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day,
+        12,
+      ),
+    );
+
+  return new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone: "UTC",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    },
+  ).format(date);
+}
+
+
+// ======================================================
+// DISPLAY HELPERS
+// ======================================================
 
 function formatTime(
   date: Date,
@@ -100,24 +394,293 @@ function formatTime(
 function formatHour(
   hour: number,
 ) {
-  const date =
-    new Date();
+  const suffix =
+    hour >= 12
+      ? "PM"
+      : "AM";
 
-  date.setHours(
-    hour,
-    0,
-    0,
-    0,
-  );
+  const displayHour =
+    hour % 12 || 12;
 
-  return date.toLocaleTimeString(
-    [],
-    {
-      hour: "numeric",
-    },
-  );
+  return `${displayHour} ${suffix}`;
 }
 
+
+// ======================================================
+// CORE NOCLASH ALGORITHM
+// ======================================================
+
+function calculateDaySchedule(
+  dateString: string,
+  minimumMinutes: number,
+  busyBlocks: BusyBlock[],
+  events: GroupEvent[],
+  timezone: string,
+): DaySchedule {
+  // Search from:
+  //
+  // 9:00 AM → 11:00 PM
+
+  const searchStart =
+    dateAtTimeInZone(
+      dateString,
+      START_HOUR,
+      0,
+      timezone,
+    );
+
+  const searchEnd =
+    dateAtTimeInZone(
+      dateString,
+      END_HOUR,
+      0,
+      timezone,
+    );
+
+
+  // ====================================================
+  // BUSY BLOCKS ON THIS DAY
+  // ====================================================
+
+  const dailyBusyBlocks:
+    DisplayBusyBlock[] =
+    busyBlocks
+      .map((block) => ({
+        ...block,
+
+        start:
+          new Date(
+            block.startsAt,
+          ),
+
+        end:
+          new Date(
+            block.endsAt,
+          ),
+      }))
+      .filter(
+        (block) =>
+          block.start <
+            searchEnd &&
+          block.end >
+            searchStart,
+      );
+
+
+  // ====================================================
+  // EVENTS ON THIS DAY
+  // ====================================================
+
+  const dailyEvents:
+    DisplayEvent[] =
+    events
+      .map((event) => ({
+        ...event,
+
+        start:
+          new Date(
+            event.startsAt,
+          ),
+
+        end:
+          new Date(
+            event.endsAt,
+          ),
+      }))
+      .filter(
+        (event) =>
+          event.start <
+            searchEnd &&
+          event.end >
+            searchStart,
+      );
+
+
+  // ====================================================
+  // CREATE ONE LIST OF BLOCKED INTERVALS
+  // ====================================================
+
+  const intervals:
+    TimeRange[] = [
+      ...dailyBusyBlocks.map(
+        (block) => ({
+          start:
+            block.start <
+            searchStart
+              ? searchStart
+              : block.start,
+
+          end:
+            block.end >
+            searchEnd
+              ? searchEnd
+              : block.end,
+        }),
+      ),
+
+      ...dailyEvents.map(
+        (event) => ({
+          start:
+            event.start <
+            searchStart
+              ? searchStart
+              : event.start,
+
+          end:
+            event.end >
+            searchEnd
+              ? searchEnd
+              : event.end,
+        }),
+      ),
+    ].sort(
+      (a, b) =>
+        a.start.getTime() -
+        b.start.getTime(),
+    );
+
+
+  // ====================================================
+  // MERGE OVERLAPPING BLOCKED TIMES
+  // ====================================================
+
+  const mergedBusy:
+    TimeRange[] = [];
+
+
+  for (
+    const interval
+    of intervals
+  ) {
+    const last =
+      mergedBusy[
+        mergedBusy.length - 1
+      ];
+
+
+    if (!last) {
+      mergedBusy.push({
+        start:
+          interval.start,
+
+        end:
+          interval.end,
+      });
+
+      continue;
+    }
+
+
+    if (
+      interval.start <=
+      last.end
+    ) {
+      if (
+        interval.end >
+        last.end
+      ) {
+        last.end =
+          interval.end;
+      }
+    } else {
+      mergedBusy.push({
+        start:
+          interval.start,
+
+        end:
+          interval.end,
+      });
+    }
+  }
+
+
+  // ====================================================
+  // FIND THE GAPS
+  // ====================================================
+
+  const freeTimes:
+    TimeRange[] = [];
+
+
+  let cursor =
+    searchStart;
+
+
+  for (
+    const busy
+    of mergedBusy
+  ) {
+    if (
+      busy.start >
+      cursor
+    ) {
+      freeTimes.push({
+        start:
+          cursor,
+
+        end:
+          busy.start,
+      });
+    }
+
+
+    if (
+      busy.end >
+      cursor
+    ) {
+      cursor =
+        busy.end;
+    }
+  }
+
+
+  if (
+    cursor <
+    searchEnd
+  ) {
+    freeTimes.push({
+      start:
+        cursor,
+
+      end:
+        searchEnd,
+    });
+  }
+
+
+  // ====================================================
+  // REMOVE RESULTS THAT ARE TOO SHORT
+  // ====================================================
+
+  const minimumDurationMs =
+    minimumMinutes *
+    60 *
+    1000;
+
+
+  const filteredFreeTimes =
+    freeTimes.filter(
+      (range) =>
+        range.end.getTime() -
+          range.start.getTime() >=
+        minimumDurationMs,
+    );
+
+
+  return {
+    searchStart,
+    searchEnd,
+    dailyBusyBlocks,
+    dailyEvents,
+    freeTimes:
+      filteredFreeTimes,
+  };
+}
+
+
+// ======================================================
+// COMPONENT
+// ======================================================
 
 export default function GroupSchedule({
   groupId,
@@ -126,296 +689,218 @@ export default function GroupSchedule({
   events,
   timezone,
 }: GroupScheduleProps) {
+  const today =
+    getDateStringInTimeZone(
+      new Date(),
+      timezone,
+    );
+
+
+  // ====================================================
+  // DAILY VIEW STATE
+  // ====================================================
 
   const [
     selectedDate,
     setSelectedDate,
-  ] = useState(
-    getTodayForDateInput(),
-  );
+  ] =
+    useState(today);
 
 
   const [
     durationMinutes,
     setDurationMinutes,
-  ] = useState(60);
+  ] =
+    useState(60);
 
+
+  // ====================================================
+  // MULTI-DAY SEARCH STATE
+  // ====================================================
+
+  const [
+    rangeStart,
+    setRangeStart,
+  ] =
+    useState(today);
+
+
+  const [
+    rangeEnd,
+    setRangeEnd,
+  ] =
+    useState(
+      addDays(
+        today,
+        6,
+      ),
+    );
+
+
+  const [
+    rangeDuration,
+    setRangeDuration,
+  ] =
+    useState(120);
+
+
+  const [
+    multiDayResults,
+    setMultiDayResults,
+  ] =
+    useState<
+      MultiDayResult[] | null
+    >(null);
+
+
+  const [
+    searchError,
+    setSearchError,
+  ] =
+    useState("");
+
+
+  // If schedule data changes after an edit,
+  // delete, or new event, clear old search results.
+
+  useEffect(() => {
+    setMultiDayResults(
+      null,
+    );
+
+    setSearchError("");
+  }, [
+    busyBlocks,
+    events,
+  ]);
+
+
+  // ====================================================
+  // DAILY SCHEDULE
+  // ====================================================
 
   const schedule =
-    useMemo(() => {
+    useMemo(
+      () =>
+        calculateDaySchedule(
+          selectedDate,
+          durationMinutes,
+          busyBlocks,
+          events,
+          timezone,
+        ),
 
-      const searchStart =
-        new Date(
-          `${selectedDate}T09:00:00`,
-        );
-
-      const searchEnd =
-        new Date(
-          `${selectedDate}T23:00:00`,
-        );
-
-
-      // ==================================================
-      // BUSY BLOCKS
-      // ==================================================
-
-      const dailyBusyBlocks:
-        DisplayBusyBlock[] =
-        busyBlocks
-          .map((block) => ({
-            ...block,
-
-            start:
-              new Date(
-                block.startsAt,
-              ),
-
-            end:
-              new Date(
-                block.endsAt,
-              ),
-          }))
-          .filter(
-            (block) =>
-              block.start <
-                searchEnd &&
-              block.end >
-                searchStart,
-          );
+      [
+        selectedDate,
+        durationMinutes,
+        busyBlocks,
+        events,
+        timezone,
+      ],
+    );
 
 
-      // ==================================================
-      // EVENTS
-      // ==================================================
+  // ====================================================
+  // MULTI-DAY SEARCH
+  // ====================================================
 
-      const dailyEvents:
-        DisplayEvent[] =
-        events
-          .map((event) => ({
-            ...event,
-
-            start:
-              new Date(
-                event.startsAt,
-              ),
-
-            end:
-              new Date(
-                event.endsAt,
-              ),
-          }))
-          .filter(
-            (event) =>
-              event.start <
-                searchEnd &&
-              event.end >
-                searchStart,
-          );
+  function findMultiDayTimes() {
+    setSearchError("");
 
 
-      // ==================================================
-      // COMBINE BUSY BLOCKS + EVENTS
-      // ==================================================
+    if (
+      !rangeStart ||
+      !rangeEnd
+    ) {
+      setSearchError(
+        "Please choose both a start and end date.",
+      );
 
-      const intervals:
-        TimeRange[] = [
+      return;
+    }
 
-          ...dailyBusyBlocks.map(
-            (block) => ({
-              start:
-                block.start <
-                searchStart
-                  ? searchStart
-                  : block.start,
 
-              end:
-                block.end >
-                searchEnd
-                  ? searchEnd
-                  : block.end,
-            }),
-          ),
+    if (
+      rangeEnd <
+      rangeStart
+    ) {
+      setSearchError(
+        "The end date must be after the start date.",
+      );
 
-          ...dailyEvents.map(
-            (event) => ({
-              start:
-                event.start <
-                searchStart
-                  ? searchStart
-                  : event.start,
+      return;
+    }
 
-              end:
-                event.end >
-                searchEnd
-                  ? searchEnd
-                  : event.end,
-            }),
-          ),
 
-        ].sort(
-          (a, b) =>
-            a.start.getTime() -
-            b.start.getTime(),
+    const numberOfDays =
+      getDaysBetween(
+        rangeStart,
+        rangeEnd,
+      );
+
+
+    if (
+      numberOfDays >
+      MAX_SEARCH_DAYS
+    ) {
+      setSearchError(
+        `Please search ${MAX_SEARCH_DAYS} days or fewer at a time.`,
+      );
+
+      return;
+    }
+
+
+    const results:
+      MultiDayResult[] = [];
+
+
+    for (
+      let index = 0;
+      index <
+      numberOfDays;
+      index++
+    ) {
+      const date =
+        addDays(
+          rangeStart,
+          index,
         );
 
 
-      // ==================================================
-      // MERGE BUSY INTERVALS
-      // ==================================================
-
-      const mergedBusy:
-        TimeRange[] = [];
-
-
-      for (
-        const interval
-        of intervals
-      ) {
-
-        const last =
-          mergedBusy[
-            mergedBusy.length - 1
-          ];
-
-
-        if (!last) {
-
-          mergedBusy.push({
-            start:
-              interval.start,
-
-            end:
-              interval.end,
-          });
-
-          continue;
-        }
-
-
-        if (
-          interval.start <=
-          last.end
-        ) {
-
-          if (
-            interval.end >
-            last.end
-          ) {
-
-            last.end =
-              interval.end;
-          }
-
-        } else {
-
-          mergedBusy.push({
-            start:
-              interval.start,
-
-            end:
-              interval.end,
-          });
-
-        }
-      }
-
-
-      // ==================================================
-      // FIND FREE TIMES
-      // ==================================================
-
-      const freeTimes:
-        TimeRange[] = [];
-
-
-      let cursor =
-        searchStart;
-
-
-      for (
-        const busy
-        of mergedBusy
-      ) {
-
-        if (
-          busy.start >
-          cursor
-        ) {
-
-          freeTimes.push({
-            start:
-              cursor,
-
-            end:
-              busy.start,
-          });
-
-        }
-
-
-        if (
-          busy.end >
-          cursor
-        ) {
-
-          cursor =
-            busy.end;
-
-        }
-      }
+      const result =
+        calculateDaySchedule(
+          date,
+          rangeDuration,
+          busyBlocks,
+          events,
+          timezone,
+        );
 
 
       if (
-        cursor <
-        searchEnd
+        result.freeTimes.length >
+        0
       ) {
+        results.push({
+          date,
 
-        freeTimes.push({
-          start:
-            cursor,
-
-          end:
-            searchEnd,
+          freeTimes:
+            result.freeTimes,
         });
-
       }
+    }
 
 
-      const minimumDurationMs =
-        durationMinutes *
-        60 *
-        1000;
+    setMultiDayResults(
+      results,
+    );
+  }
 
 
-      const filteredFreeTimes =
-        freeTimes.filter(
-          (range) =>
-            range.end.getTime() -
-              range.start.getTime() >=
-            minimumDurationMs,
-        );
-
-
-      return {
-        searchStart,
-        searchEnd,
-        dailyBusyBlocks,
-        dailyEvents,
-        freeTimes:
-          filteredFreeTimes,
-      };
-
-    }, [
-      selectedDate,
-      durationMinutes,
-      busyBlocks,
-      events,
-    ]);
-
-
-  // ======================================================
-  // HOUR LABELS
-  // ======================================================
+  // ====================================================
+  // TIMELINE LABELS
+  // ====================================================
 
   const hourLabels:
     number[] = [];
@@ -427,22 +912,19 @@ export default function GroupSchedule({
     hour <= END_HOUR;
     hour++
   ) {
-
     hourLabels.push(
       hour,
     );
-
   }
 
 
-  // ======================================================
+  // ====================================================
   // TIMELINE POSITION HELPERS
-  // ======================================================
+  // ====================================================
 
   function getPosition(
     date: Date,
   ) {
-
     const total =
       schedule.searchEnd.getTime() -
       schedule.searchStart.getTime();
@@ -457,7 +939,6 @@ export default function GroupSchedule({
       (elapsed / total) *
       100
     );
-
   }
 
 
@@ -465,7 +946,6 @@ export default function GroupSchedule({
     start: Date,
     end: Date,
   ) {
-
     const clippedStart =
       start <
       schedule.searchStart
@@ -499,114 +979,117 @@ export default function GroupSchedule({
       width:
         `${right - left}%`,
     };
-
   }
 
 
-  // ======================================================
-  // PAGE
-  // ======================================================
+  // ====================================================
+  // UI
+  // ====================================================
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
 
+      {/* ================================================= */}
       {/* HEADER */}
+      {/* ================================================= */}
 
       <div>
-
         <h2 className="text-2xl font-bold text-gray-900">
           Group schedule
         </h2>
 
         <p className="mt-2 text-sm text-gray-600">
-          See everyone&apos;s schedule
-          and find times when the whole
-          group is free.
+          See everyone&apos;s schedule and
+          find times when the whole group
+          is free.
         </p>
 
         <p className="mt-1 text-xs text-gray-500">
           Times are shown in{" "}
           {timezone}.
         </p>
-
       </div>
 
 
-      {/* CONTROLS */}
+      {/* ================================================= */}
+      {/* DAILY VIEW CONTROLS */}
+      {/* ================================================= */}
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="mt-8">
 
-        <div>
+        <h3 className="text-lg font-semibold text-gray-900">
+          Daily schedule
+        </h3>
 
-          <label
-            htmlFor="scheduleDate"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Date
-          </label>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
 
-          <input
-            id="scheduleDate"
-            type="date"
-            value={
-              selectedDate
-            }
-            onChange={(event) =>
-              setSelectedDate(
-                event.target.value,
-              )
-            }
-            className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-          />
+          <div>
+            <label
+              htmlFor="scheduleDate"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Date
+            </label>
 
-        </div>
-
-
-        <div>
-
-          <label
-            htmlFor="duration"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Minimum free time
-          </label>
-
-          <select
-            id="duration"
-            value={
-              durationMinutes
-            }
-            onChange={(event) =>
-              setDurationMinutes(
-                Number(
+            <input
+              id="scheduleDate"
+              type="date"
+              value={
+                selectedDate
+              }
+              onChange={(event) =>
+                setSelectedDate(
                   event.target.value,
-                ),
-              )
-            }
-            className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
-          >
+                )
+              }
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            />
+          </div>
 
-            <option value={30}>
-              30 minutes
-            </option>
 
-            <option value={60}>
-              1 hour
-            </option>
+          <div>
+            <label
+              htmlFor="duration"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Minimum free time
+            </label>
 
-            <option value={90}>
-              1.5 hours
-            </option>
+            <select
+              id="duration"
+              value={
+                durationMinutes
+              }
+              onChange={(event) =>
+                setDurationMinutes(
+                  Number(
+                    event.target.value,
+                  ),
+                )
+              }
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            >
+              <option value={30}>
+                30 minutes
+              </option>
 
-            <option value={120}>
-              2 hours
-            </option>
+              <option value={60}>
+                1 hour
+              </option>
 
-            <option value={180}>
-              3 hours
-            </option>
+              <option value={90}>
+                1.5 hours
+              </option>
 
-          </select>
+              <option value={120}>
+                2 hours
+              </option>
+
+              <option value={180}>
+                3 hours
+              </option>
+            </select>
+          </div>
 
         </div>
 
@@ -622,29 +1105,36 @@ export default function GroupSchedule({
         <div className="min-w-[850px]">
 
 
-          {/* HOUR LABELS */}
+          {/* HOURS */}
 
           <div className="ml-28 flex">
 
             {hourLabels
-              .slice(0, -1)
-              .map((hour) => (
+              .slice(
+                0,
+                -1,
+              )
+              .map(
+                (hour) => (
 
-                <div
-                  key={hour}
-                  className="flex-1 text-xs text-gray-500"
-                >
-                  {formatHour(
-                    hour,
-                  )}
-                </div>
+                  <div
+                    key={
+                      hour
+                    }
+                    className="flex-1 text-xs text-gray-500"
+                  >
+                    {formatHour(
+                      hour,
+                    )}
+                  </div>
 
-              ))}
+                ),
+              )}
 
           </div>
 
 
-          {/* MEMBER ROWS */}
+          {/* MEMBERS */}
 
           <div className="mt-3 space-y-3">
 
@@ -668,18 +1158,14 @@ export default function GroupSchedule({
                   >
 
                     <div className="w-28 shrink-0 pr-4 text-sm font-medium text-gray-900">
-
                       {
                         member.displayName
                       }
-
                     </div>
 
 
                     <div className="relative h-12 flex-1 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
 
-
-                      {/* GRID */}
 
                       <div className="absolute inset-0 flex">
 
@@ -689,9 +1175,7 @@ export default function GroupSchedule({
                             -1,
                           )
                           .map(
-                            (
-                              hour,
-                            ) => (
+                            (hour) => (
 
                               <div
                                 key={
@@ -705,8 +1189,6 @@ export default function GroupSchedule({
 
                       </div>
 
-
-                      {/* BUSY BLOCKS */}
 
                       {memberBlocks.map(
                         (block) => (
@@ -766,15 +1248,22 @@ export default function GroupSchedule({
               <div className="absolute inset-0 flex">
 
                 {hourLabels
-                  .slice(0, -1)
-                  .map((hour) => (
+                  .slice(
+                    0,
+                    -1,
+                  )
+                  .map(
+                    (hour) => (
 
-                    <div
-                      key={hour}
-                      className="flex-1 border-r border-gray-200 last:border-r-0"
-                    />
+                      <div
+                        key={
+                          hour
+                        }
+                        className="flex-1 border-r border-gray-200 last:border-r-0"
+                      />
 
-                  ))}
+                    ),
+                  )}
 
               </div>
 
@@ -833,15 +1322,22 @@ export default function GroupSchedule({
               <div className="absolute inset-0 flex">
 
                 {hourLabels
-                  .slice(0, -1)
-                  .map((hour) => (
+                  .slice(
+                    0,
+                    -1,
+                  )
+                  .map(
+                    (hour) => (
 
-                    <div
-                      key={hour}
-                      className="flex-1 border-r border-gray-200 last:border-r-0"
-                    />
+                      <div
+                        key={
+                          hour
+                        }
+                        className="flex-1 border-r border-gray-200 last:border-r-0"
+                      />
 
-                  ))}
+                    ),
+                  )}
 
               </div>
 
@@ -973,7 +1469,7 @@ export default function GroupSchedule({
 
 
       {/* ================================================= */}
-      {/* AVAILABLE TIMES */}
+      {/* AVAILABLE TIMES FOR SELECTED DAY */}
       {/* ================================================= */}
 
       <div className="mt-10">
@@ -982,10 +1478,9 @@ export default function GroupSchedule({
           Available times
         </h3>
 
-
         <p className="mt-1 text-sm text-gray-500">
-          Searching between 9:00 AM
-          and 11:00 PM.
+          Searching between 9:00 AM and
+          11:00 PM.
         </p>
 
 
@@ -1060,6 +1555,314 @@ export default function GroupSchedule({
                 </div>
 
               ),
+            )}
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* ================================================= */}
+      {/* MULTI-DAY SEARCH */}
+      {/* ================================================= */}
+
+      <div className="mt-14 border-t border-gray-200 pt-10">
+
+        <h3 className="text-2xl font-bold text-gray-900">
+          Find a time across multiple days
+        </h3>
+
+
+        <p className="mt-2 text-sm text-gray-600">
+          Choose a date range and NoClash
+          will search every day for times
+          when the entire group is free.
+        </p>
+
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+
+
+          {/* FROM */}
+
+          <div>
+
+            <label
+              htmlFor="rangeStart"
+              className="block text-sm font-medium text-gray-700"
+            >
+              From
+            </label>
+
+            <input
+              id="rangeStart"
+              type="date"
+              value={
+                rangeStart
+              }
+              onChange={(event) =>
+                setRangeStart(
+                  event.target.value,
+                )
+              }
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            />
+
+          </div>
+
+
+          {/* TO */}
+
+          <div>
+
+            <label
+              htmlFor="rangeEnd"
+              className="block text-sm font-medium text-gray-700"
+            >
+              To
+            </label>
+
+            <input
+              id="rangeEnd"
+              type="date"
+              value={
+                rangeEnd
+              }
+              onChange={(event) =>
+                setRangeEnd(
+                  event.target.value,
+                )
+              }
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            />
+
+          </div>
+
+
+          {/* DURATION */}
+
+          <div>
+
+            <label
+              htmlFor="rangeDuration"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Need at least
+            </label>
+
+            <select
+              id="rangeDuration"
+              value={
+                rangeDuration
+              }
+              onChange={(event) =>
+                setRangeDuration(
+                  Number(
+                    event.target.value,
+                  ),
+                )
+              }
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900"
+            >
+
+              <option value={30}>
+                30 minutes
+              </option>
+
+              <option value={60}>
+                1 hour
+              </option>
+
+              <option value={90}>
+                1.5 hours
+              </option>
+
+              <option value={120}>
+                2 hours
+              </option>
+
+              <option value={180}>
+                3 hours
+              </option>
+
+              <option value={240}>
+                4 hours
+              </option>
+
+            </select>
+
+          </div>
+
+        </div>
+
+
+        <p className="mt-3 text-xs text-gray-500">
+          NoClash searches between
+          9:00 AM and 11:00 PM each day.
+          You can search up to 31 days at
+          once.
+        </p>
+
+
+        {searchError && (
+
+          <p className="mt-4 text-sm text-red-600">
+            {searchError}
+          </p>
+
+        )}
+
+
+        <button
+          type="button"
+          onClick={
+            findMultiDayTimes
+          }
+          className="mt-5 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+        >
+          Find Times
+        </button>
+
+
+        {/* =============================================== */}
+        {/* MULTI-DAY RESULTS */}
+        {/* =============================================== */}
+
+        {multiDayResults !==
+          null && (
+
+          <div className="mt-8">
+
+
+            {multiDayResults.length ===
+            0 ? (
+
+              <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
+
+                <p className="font-semibold text-gray-900">
+                  No matching times found.
+                </p>
+
+                <p className="mt-2 text-sm text-gray-500">
+                  Try a shorter meeting
+                  duration or a wider date
+                  range.
+                </p>
+
+              </div>
+
+            ) : (
+
+              <div className="space-y-6">
+
+
+                <div>
+
+                  <h4 className="text-lg font-semibold text-gray-900">
+                    Best available times
+                  </h4>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Found availability
+                    on{" "}
+                    {
+                      multiDayResults.length
+                    }{" "}
+                    day
+                    {multiDayResults.length ===
+                    1
+                      ? ""
+                      : "s"}
+                    .
+                  </p>
+
+                </div>
+
+
+                {multiDayResults.map(
+                  (dayResult) => (
+
+                    <div
+                      key={
+                        dayResult.date
+                      }
+                      className="rounded-xl border border-gray-200 bg-gray-50 p-5"
+                    >
+
+                      <h5 className="text-lg font-semibold text-gray-900">
+                        {formatDateLabel(
+                          dayResult.date,
+                        )}
+                      </h5>
+
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+                        {dayResult.freeTimes.map(
+                          (
+                            range,
+                            index,
+                          ) => (
+
+                            <div
+                              key={`${range.start.toISOString()}-${index}`}
+                              className="rounded-lg border border-green-200 bg-green-50 p-4"
+                            >
+
+                              <p className="font-semibold text-green-900">
+
+                                {formatTime(
+                                  range.start,
+                                  timezone,
+                                )}
+
+                                {" – "}
+
+                                {formatTime(
+                                  range.end,
+                                  timezone,
+                                )}
+
+                              </p>
+
+
+                              <p className="mt-1 text-sm text-green-700">
+                                Everyone is
+                                available
+                              </p>
+
+
+                              <ScheduleEventButton
+                                groupId={
+                                  groupId
+                                }
+                                slotStart={
+                                  range.start
+                                }
+                                slotEnd={
+                                  range.end
+                                }
+                                timezone={
+                                  timezone
+                                }
+                              />
+
+                            </div>
+
+                          ),
+                        )}
+
+                      </div>
+
+                    </div>
+
+                  ),
+                )}
+
+              </div>
+
             )}
 
           </div>
