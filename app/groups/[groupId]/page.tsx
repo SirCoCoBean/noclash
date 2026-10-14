@@ -1,16 +1,16 @@
-import Link from "next/link";
 import { connection } from "next/server";
+
 import {
   notFound,
   redirect,
 } from "next/navigation";
 
 import AddBusyBlockForm from "@/components/AddBusyBlockForm";
+import AppHeader from "@/components/AppHeader";
 import DeleteBusyBlockButton from "@/components/DeleteBusyBlockButton";
 import GroupSchedule from "@/components/GroupSchedule";
 import GroupSettings from "@/components/GroupSettings";
 import InviteFriendButton from "@/components/InviteFriendButton";
-import LogoutButton from "@/components/LogoutButton";
 import RemoveGroupMemberButton from "@/components/RemoveGroupMemberButton";
 
 import { createClient } from "@/lib/supabase/server";
@@ -51,7 +51,10 @@ export default async function GroupPage({
   // GROUP
   // ======================================================
 
-  const { data: group } =
+  const {
+    data: group,
+    error: groupError,
+  } =
     await supabase
       .from("groups")
       .select(
@@ -63,12 +66,15 @@ export default async function GroupPage({
       )
       .single();
 
-  if (!group) {
+  if (
+    groupError ||
+    !group
+  ) {
     notFound();
   }
 
   // ======================================================
-  // PROFILE
+  // CURRENT USER PROFILE
   // ======================================================
 
   const {
@@ -94,7 +100,7 @@ export default async function GroupPage({
     "Account";
 
   // ======================================================
-  // MEMBERS
+  // GROUP MEMBERS
   // ======================================================
 
   const {
@@ -120,8 +126,7 @@ export default async function GroupPage({
       .order(
         "joined_at",
         {
-          ascending:
-            true,
+          ascending: true,
         },
       );
 
@@ -132,7 +137,7 @@ export default async function GroupPage({
     ) ?? [];
 
   // ======================================================
-  // PERSONAL BUSY TIMES
+  // CURRENT USER BUSY TIMES
   // ======================================================
 
   const {
@@ -155,13 +160,12 @@ export default async function GroupPage({
       .order(
         "starts_at",
         {
-          ascending:
-            true,
+          ascending: true,
         },
       );
 
   // ======================================================
-  // GROUP BUSY TIMES
+  // ALL GROUP MEMBER BUSY TIMES
   // ======================================================
 
   let groupBusyBlocks: {
@@ -192,8 +196,7 @@ export default async function GroupPage({
         .order(
           "starts_at",
           {
-            ascending:
-              true,
+            ascending: true,
           },
         );
 
@@ -202,7 +205,7 @@ export default async function GroupPage({
   }
 
   // ======================================================
-  // EVENTS
+  // GROUP EVENTS
   // ======================================================
 
   const {
@@ -222,8 +225,7 @@ export default async function GroupPage({
       .order(
         "starts_at",
         {
-          ascending:
-            true,
+          ascending: true,
         },
       );
 
@@ -238,7 +240,7 @@ export default async function GroupPage({
           member.user_id,
 
         displayName:
-          member.profiles
+          member.profiles?.[0]
             ?.display_name ??
           "Unknown user",
       }),
@@ -288,6 +290,10 @@ export default async function GroupPage({
     group.created_by ===
     user.id;
 
+  // ======================================================
+  // DATE FORMATTER
+  // ======================================================
+
   const dateFormatter =
     new Intl.DateTimeFormat(
       "en-US",
@@ -317,7 +323,9 @@ export default async function GroupPage({
   // ======================================================
 
   return (
-    <main className="sakura-page px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
+    <main className="sakura-page px-4 py-5 sm:px-8 sm:py-8 lg:px-12 lg:py-10">
+
+      {/* Decorative petals */}
 
       <span className="sakura-petal sakura-petal-one" />
       <span className="sakura-petal sakura-petal-two" />
@@ -327,59 +335,20 @@ export default async function GroupPage({
       <div className="sakura-content mx-auto max-w-6xl">
 
         {/* ================================================= */}
-        {/* NAV */}
+        {/* REUSABLE NAVIGATION */}
         {/* ================================================= */}
 
-        <header className="sakura-card flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-7">
-
-          <Link
-            href="/dashboard"
-            className="group flex items-center gap-3"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#fbe8ed] text-[#b9687d] transition group-hover:-translate-x-1">
-              ←
-            </div>
-
-            <div>
-              <p className="sakura-title text-lg font-semibold">
-                NoClash
-              </p>
-
-              <p className="text-xs text-[#9d858e]">
-                Back to dashboard
-              </p>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-3">
-
-            <div className="hidden text-right md:block">
-              <p className="text-sm font-semibold text-[#51474b]">
-                {userName}
-              </p>
-
-              <p className="text-xs text-[#9d858e]">
-                {userTimezone}
-              </p>
-            </div>
-
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5d2dc] text-sm font-bold text-[#945064]">
-              {userName
-                .charAt(0)
-                .toUpperCase()}
-            </div>
-
-            <LogoutButton />
-
-          </div>
-
-        </header>
+        <AppHeader
+          displayName={userName}
+          timezone={userTimezone}
+          showBackToDashboard
+        />
 
         {/* ================================================= */}
-        {/* HERO */}
+        {/* GROUP HERO */}
         {/* ================================================= */}
 
-        <section className="mt-10">
+        <section className="mt-10 sm:mt-12">
 
           <div className="inline-flex items-center gap-2 rounded-full border border-[#e9a6b8]/30 bg-white/60 px-4 py-2 backdrop-blur">
 
@@ -387,17 +356,17 @@ export default async function GroupPage({
               ✿
             </span>
 
-            <span className="text-xs font-semibold uppercase tracking-[0.15em] text-[#9b6575]">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#9b6575] sm:text-xs">
               Shared schedule
             </span>
 
           </div>
 
-          <h1 className="sakura-title mt-5 text-4xl font-semibold sm:text-5xl">
+          <h1 className="sakura-title mt-5 break-words text-4xl font-semibold sm:text-5xl">
             {group.name}
           </h1>
 
-          <p className="mt-3 max-w-2xl text-lg leading-8 text-[#74676d]">
+          <p className="mt-3 max-w-2xl text-base leading-7 text-[#74676d] sm:text-lg sm:leading-8">
             Compare schedules, find an opening that
             works for everyone, and turn it into a plan.
           </p>
@@ -408,7 +377,7 @@ export default async function GroupPage({
         {/* MEMBERS */}
         {/* ================================================= */}
 
-        <section className="sakura-card mt-10 p-6 sm:p-7">
+        <section className="sakura-card mt-8 p-5 sm:mt-10 sm:p-7">
 
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
 
@@ -422,18 +391,22 @@ export default async function GroupPage({
                 Group members
               </h2>
 
-              <p className="mt-2 text-sm text-[#74676d]">
+              <p className="mt-2 text-sm leading-6 text-[#74676d]">
                 Everyone currently planning together.
               </p>
 
             </div>
 
             {isOwner && (
-              <InviteFriendButton
-                groupId={
-                  group.id
-                }
-              />
+              <div className="w-full sm:w-auto">
+
+                <InviteFriendButton
+                  groupId={
+                    group.id
+                  }
+                />
+
+              </div>
             )}
 
           </div>
@@ -446,82 +419,82 @@ export default async function GroupPage({
 
           {!membersError &&
             members && (
-            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
 
-              {members.map(
-                (member) => {
-                  const displayName =
-                    member.profiles
-                      ?.display_name ??
-                    "Unknown user";
+                {members.map(
+                  (member) => {
+                    const displayName =
+                      member.profiles?.[0]
+                        ?.display_name ??
+                      "Unknown user";
 
-                  return (
-                    <div
-                      key={
-                        member.user_id
-                      }
-                      className="flex items-center justify-between gap-4 rounded-2xl border border-[#b9687d]/10 bg-white/55 p-4"
-                    >
+                    return (
+                      <div
+                        key={
+                          member.user_id
+                        }
+                        className="flex min-w-0 flex-col gap-4 rounded-2xl border border-[#b9687d]/10 bg-white/55 p-4 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between"
+                      >
 
-                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
 
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fbe8ed] font-semibold text-[#945064]">
-                          {displayName
-                            .charAt(0)
-                            .toUpperCase()}
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fbe8ed] font-semibold text-[#945064]">
+                            {displayName
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+
+                          <div className="min-w-0">
+
+                            <p className="break-words font-semibold text-[#40373b]">
+                              {displayName}
+                            </p>
+
+                            <p className="mt-1 text-xs text-[#8c7c82]">
+                              {member.role ===
+                              "owner"
+                                ? "Group owner"
+                                : "Member"}
+                            </p>
+
+                          </div>
+
                         </div>
 
-                        <div className="min-w-0">
+                        <div className="flex shrink-0 items-center gap-2">
 
-                          <p className="truncate font-semibold text-[#40373b]">
-                            {displayName}
-                          </p>
-
-                          <p className="mt-1 text-xs text-[#8c7c82]">
-                            {member.role ===
-                            "owner"
-                              ? "Group owner"
-                              : "Member"}
-                          </p>
-
-                        </div>
-
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-2">
-
-                        {member.user_id ===
-                          user.id && (
-                          <span className="sakura-badge">
-                            You
-                          </span>
-                        )}
-
-                        {isOwner &&
-                          member.user_id !==
+                          {member.user_id ===
                             user.id && (
-                          <RemoveGroupMemberButton
-                            groupId={
-                              group.id
-                            }
-                            userId={
-                              member.user_id
-                            }
-                            displayName={
-                              displayName
-                            }
-                          />
-                        )}
+                            <span className="sakura-badge">
+                              You
+                            </span>
+                          )}
+
+                          {isOwner &&
+                            member.user_id !==
+                              user.id && (
+                            <RemoveGroupMemberButton
+                              groupId={
+                                group.id
+                              }
+                              userId={
+                                member.user_id
+                              }
+                              displayName={
+                                displayName
+                              }
+                            />
+                          )}
+
+                        </div>
 
                       </div>
+                    );
+                  },
+                )}
 
-                    </div>
-                  );
-                },
-              )}
-
-            </div>
-          )}
+              </div>
+            )}
 
         </section>
 
@@ -529,32 +502,44 @@ export default async function GroupPage({
         {/* GROUP SETTINGS */}
         {/* ================================================= */}
 
-        <section className="mt-8">
+        <section className="mt-6 sm:mt-8">
+
           <GroupSettings
-            groupId={group.id}
-            groupName={group.name}
-            isOwner={isOwner}
+            groupId={
+              group.id
+            }
+            groupName={
+              group.name
+            }
+            isOwner={
+              isOwner
+            }
           />
+
         </section>
 
         {/* ================================================= */}
-        {/* ADD BUSY */}
+        {/* ADD BUSY TIME */}
         {/* ================================================= */}
 
-        <section className="mt-8">
+        <section className="mt-6 sm:mt-8">
+
           <AddBusyBlockForm
-            userId={user.id}
+            userId={
+              user.id
+            }
             timezone={
               userTimezone
             }
           />
+
         </section>
 
         {/* ================================================= */}
-        {/* BUSY TIMES */}
+        {/* PERSONAL BUSY TIMES */}
         {/* ================================================= */}
 
-        <section className="sakura-card mt-8 p-6 sm:p-7">
+        <section className="sakura-card mt-6 p-5 sm:mt-8 sm:p-7">
 
           <div className="flex items-start justify-between gap-5">
 
@@ -568,14 +553,14 @@ export default async function GroupPage({
                 Your busy times
               </h2>
 
-              <p className="mt-2 text-sm text-[#74676d]">
+              <p className="mt-2 text-sm leading-6 text-[#74676d]">
                 NoClash avoids these when finding
                 shared availability.
               </p>
 
             </div>
 
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e6ebdf] text-[#718067]">
+            <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e6ebdf] text-[#718067] sm:flex">
               ◷
             </div>
 
@@ -591,7 +576,7 @@ export default async function GroupPage({
             (!personalBusyBlocks ||
               personalBusyBlocks.length ===
                 0) && (
-              <div className="mt-7 rounded-2xl border border-dashed border-[#a9b59f]/35 bg-[#f5f7f2]/55 p-8 text-center">
+              <div className="mt-7 rounded-2xl border border-dashed border-[#a9b59f]/35 bg-[#f5f7f2]/55 p-7 text-center sm:p-8">
 
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e6ebdf] text-[#718067]">
                   ✓
@@ -601,7 +586,7 @@ export default async function GroupPage({
                   Your schedule is clear
                 </p>
 
-                <p className="mt-2 text-sm text-[#8c7c82]">
+                <p className="mt-2 text-sm leading-6 text-[#8c7c82]">
                   Add an unavailable period above
                   whenever you need one.
                 </p>
@@ -618,21 +603,23 @@ export default async function GroupPage({
                 {personalBusyBlocks.map(
                   (block) => (
                     <div
-                      key={block.id}
+                      key={
+                        block.id
+                      }
                       className="flex flex-col justify-between gap-4 rounded-2xl border border-[#a9b59f]/20 bg-[#f5f7f2]/65 p-4 sm:flex-row sm:items-center"
                     >
 
-                      <div className="flex items-start gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
 
                         <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#a9b59f]" />
 
-                        <div>
+                        <div className="min-w-0">
 
                           <p className="font-semibold text-[#4b5546]">
                             Busy
                           </p>
 
-                          <p className="mt-1 text-sm text-[#718067]">
+                          <p className="mt-1 break-words text-sm text-[#718067]">
                             {dateFormatter.format(
                               new Date(
                                 block.starts_at,
@@ -640,7 +627,7 @@ export default async function GroupPage({
                             )}
                           </p>
 
-                          <p className="mt-1 text-xs text-[#8d9987]">
+                          <p className="mt-1 break-words text-xs text-[#8d9987]">
                             until{" "}
                             {dateFormatter.format(
                               new Date(
@@ -653,11 +640,15 @@ export default async function GroupPage({
 
                       </div>
 
-                      <DeleteBusyBlockButton
-                        busyBlockId={
-                          block.id
-                        }
-                      />
+                      <div className="shrink-0">
+
+                        <DeleteBusyBlockButton
+                          busyBlockId={
+                            block.id
+                          }
+                        />
+
+                      </div>
 
                     </div>
                   ),
@@ -669,23 +660,25 @@ export default async function GroupPage({
         </section>
 
         {/* ================================================= */}
-        {/* EVENT ERROR */}
+        {/* GROUP EVENT ERROR */}
         {/* ================================================= */}
 
         {groupEventsError && (
-          <section className="mt-8 rounded-2xl border border-red-200 bg-red-50/80 p-5">
+          <section className="mt-6 rounded-2xl border border-red-200 bg-red-50/80 p-5 sm:mt-8">
+
             <p className="text-sm text-red-700">
               Could not load group events.
             </p>
+
           </section>
         )}
 
         {/* ================================================= */}
-        {/* SCHEDULE */}
+        {/* GROUP SCHEDULE */}
         {/* ================================================= */}
 
         {!groupEventsError && (
-          <section className="mt-8 pb-12">
+          <section className="mt-6 min-w-0 pb-12 sm:mt-8">
 
             <GroupSchedule
               groupId={

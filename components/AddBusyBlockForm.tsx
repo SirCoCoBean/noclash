@@ -9,6 +9,10 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
+import {
+  localInputToUtcIso,
+} from "@/lib/timezone";
+
 type AddBusyBlockFormProps = {
   userId: string;
   timezone: string;
@@ -18,7 +22,8 @@ export default function AddBusyBlockForm({
   userId,
   timezone,
 }: AddBusyBlockFormProps) {
-  const router = useRouter();
+  const router =
+    useRouter();
 
   const supabase =
     createClient();
@@ -61,32 +66,41 @@ export default function AddBusyBlockForm({
       return;
     }
 
-    const startDate =
-      new Date(startsAt);
+    let startsAtIso: string;
+    let endsAtIso: string;
 
-    const endDate =
-      new Date(endsAt);
+    try {
+      startsAtIso =
+        localInputToUtcIso(
+          startsAt,
+          timezone,
+        );
 
-    if (
-      Number.isNaN(
-        startDate.getTime(),
-      ) ||
-      Number.isNaN(
-        endDate.getTime(),
-      )
-    ) {
+      endsAtIso =
+        localInputToUtcIso(
+          endsAt,
+          timezone,
+        );
+    } catch (error) {
       setErrorMessage(
-        "Please enter valid dates and times.",
+        error instanceof Error
+          ? error.message
+          : "Please enter valid times.",
       );
 
       return;
     }
 
     if (
-      endDate <= startDate
+      new Date(
+        endsAtIso,
+      ).getTime() <=
+      new Date(
+        startsAtIso,
+      ).getTime()
     ) {
       setErrorMessage(
-        "The end time must be after the start time.",
+        "End time must be after start time.",
       );
 
       return;
@@ -102,10 +116,10 @@ export default function AddBusyBlockForm({
             userId,
 
           starts_at:
-            startDate.toISOString(),
+            startsAtIso,
 
           ends_at:
-            endDate.toISOString(),
+            endsAtIso,
         });
 
     if (error) {
@@ -127,37 +141,36 @@ export default function AddBusyBlockForm({
   }
 
   return (
-    <div className="sakura-card relative overflow-hidden p-6 sm:p-7">
+    <section className="sakura-card relative overflow-hidden p-6 sm:p-7">
 
-      <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-[#f5d2dc]/40 blur-3xl" />
+      <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-[#e6ebdf]/50 blur-3xl" />
 
       <div className="relative">
 
-        <div>
-          <p className="sakura-label">
-            Your availability
-          </p>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#718067]">
+          Availability
+        </p>
 
-          <h2 className="sakura-title mt-2 text-2xl font-semibold">
-            Add busy time
-          </h2>
+        <h2 className="sakura-title mt-2 text-2xl font-semibold">
+          Add busy time
+        </h2>
 
-          <p className="mt-2 text-sm leading-6 text-[#74676d]">
-            Tell NoClash when you&apos;re unavailable and
-            we&apos;ll keep that time out of shared results.
-          </p>
-
-          <p className="mt-1 text-xs text-[#9d8e93]">
-            Times are shown in {timezone}.
-          </p>
-        </div>
+        <p className="mt-2 text-sm leading-6 text-[#74676d]">
+          Mark a time when you&apos;re unavailable.
+          Times are interpreted using{" "}
+          <span className="font-semibold">
+            {timezone}
+          </span>
+          .
+        </p>
 
         <form
           onSubmit={handleSubmit}
-          className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end"
+          className="mt-6 grid gap-4 md:grid-cols-2"
         >
 
           <div>
+
             <label
               htmlFor="busyStart"
               className="block text-sm font-semibold text-[#5f5358]"
@@ -168,6 +181,7 @@ export default function AddBusyBlockForm({
             <input
               id="busyStart"
               type="datetime-local"
+              required
               value={startsAt}
               onChange={(event) =>
                 setStartsAt(
@@ -176,9 +190,11 @@ export default function AddBusyBlockForm({
               }
               className="sakura-input mt-2 px-4 py-3"
             />
+
           </div>
 
           <div>
+
             <label
               htmlFor="busyEnd"
               className="block text-sm font-semibold text-[#5f5358]"
@@ -189,6 +205,7 @@ export default function AddBusyBlockForm({
             <input
               id="busyEnd"
               type="datetime-local"
+              required
               value={endsAt}
               onChange={(event) =>
                 setEndsAt(
@@ -197,28 +214,33 @@ export default function AddBusyBlockForm({
               }
               className="sakura-input mt-2 px-4 py-3"
             />
+
           </div>
 
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="sakura-button min-h-[50px] px-5 py-3 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSaving
-              ? "Adding..."
-              : "Add Busy Time"}
-          </button>
+          {errorMessage && (
+            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 md:col-span-2">
+              {errorMessage}
+            </p>
+          )}
+
+          <div className="md:col-span-2">
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="sakura-button w-full px-5 py-3 sm:w-auto disabled:opacity-50"
+            >
+              {isSaving
+                ? "Adding..."
+                : "Add Busy Time"}
+            </button>
+
+          </div>
 
         </form>
 
-        {errorMessage && (
-          <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">
-            {errorMessage}
-          </p>
-        )}
-
       </div>
 
-    </div>
+    </section>
   );
 }

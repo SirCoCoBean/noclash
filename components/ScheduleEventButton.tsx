@@ -9,27 +9,17 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
+import {
+  localInputToUtcIso,
+  utcToLocalInput,
+} from "@/lib/timezone";
+
 type ScheduleEventButtonProps = {
   groupId: string;
-  slotStart: Date;
-  slotEnd: Date;
+  slotStart: string | Date;
+  slotEnd: string | Date;
   timezone: string;
 };
-
-function toLocalInputValue(
-  date: Date,
-) {
-  const offset =
-    date.getTimezoneOffset() *
-    60 *
-    1000;
-
-  return new Date(
-    date.getTime() - offset,
-  )
-    .toISOString()
-    .slice(0, 16);
-}
 
 export default function ScheduleEventButton({
   groupId,
@@ -57,8 +47,9 @@ export default function ScheduleEventButton({
     startsAt,
     setStartsAt,
   ] = useState(
-    toLocalInputValue(
+    utcToLocalInput(
       slotStart,
+      timezone,
     ),
   );
 
@@ -66,8 +57,9 @@ export default function ScheduleEventButton({
     endsAt,
     setEndsAt,
   ] = useState(
-    toLocalInputValue(
+    utcToLocalInput(
       slotEnd,
+      timezone,
     ),
   );
 
@@ -93,34 +85,72 @@ export default function ScheduleEventButton({
 
     if (!trimmedTitle) {
       setErrorMessage(
-        "Please enter an event name.",
+        "Please enter an event title.",
       );
 
       return;
     }
 
-    const startDate =
-      new Date(startsAt);
+    let startsAtIso: string;
+    let endsAtIso: string;
 
-    const endDate =
-      new Date(endsAt);
+    try {
+      startsAtIso =
+        localInputToUtcIso(
+          startsAt,
+          timezone,
+        );
+
+      endsAtIso =
+        localInputToUtcIso(
+          endsAt,
+          timezone,
+        );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Please enter valid times.",
+      );
+
+      return;
+    }
+
+    const start =
+      new Date(
+        startsAtIso,
+      );
+
+    const end =
+      new Date(
+        endsAtIso,
+      );
+
+    const allowedStart =
+      new Date(slotStart);
+
+    const allowedEnd =
+      new Date(slotEnd);
 
     if (
-      endDate <= startDate
+      end.getTime() <=
+      start.getTime()
     ) {
       setErrorMessage(
-        "The end time must be after the start time.",
+        "End time must be after start time.",
       );
 
       return;
     }
 
     if (
-      startDate < slotStart ||
-      endDate > slotEnd
+      start.getTime() <
+        allowedStart.getTime() ||
+      end.getTime() >
+        allowedEnd.getTime()
     ) {
       setErrorMessage(
-        "The event must stay inside this available time.",
+        "The event must stay inside this available time window.",
       );
 
       return;
@@ -139,10 +169,10 @@ export default function ScheduleEventButton({
             trimmedTitle,
 
           event_starts_at:
-            startDate.toISOString(),
+            startsAtIso,
 
           event_ends_at:
-            endDate.toISOString(),
+            endsAtIso,
         },
       );
 
@@ -156,9 +186,9 @@ export default function ScheduleEventButton({
       return;
     }
 
-    setTitle("");
     setIsSaving(false);
     setIsOpen(false);
+    setTitle("");
 
     router.refresh();
   }
@@ -170,7 +200,7 @@ export default function ScheduleEventButton({
         onClick={() =>
           setIsOpen(true)
         }
-        className="sakura-button mt-4 px-4 py-2.5 text-sm"
+        className="sakura-button w-full px-4 py-2.5 sm:w-auto"
       >
         Schedule Event
       </button>
@@ -180,39 +210,31 @@ export default function ScheduleEventButton({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 rounded-xl border border-[#a9b59f]/20 bg-white/65 p-4"
+      className="mt-4 rounded-2xl border border-[#b9687d]/10 bg-white/65 p-4"
     >
 
-      <p className="sakura-title font-semibold">
-        Create event
-      </p>
+      <div className="grid gap-4 md:grid-cols-3">
 
-      <p className="mt-1 text-xs text-[#8c7c82]">
-        Times shown in {timezone}.
-      </p>
+        <div className="md:col-span-3">
 
-      <div className="mt-4">
+          <label className="block text-sm font-semibold text-[#5f5358]">
+            Event name
+          </label>
 
-        <label className="block text-sm font-semibold text-[#5f5358]">
-          Event name
-        </label>
+          <input
+            type="text"
+            value={title}
+            maxLength={100}
+            onChange={(event) =>
+              setTitle(
+                event.target.value,
+              )
+            }
+            placeholder="Dinner"
+            className="sakura-input mt-2 px-4 py-3"
+          />
 
-        <input
-          type="text"
-          value={title}
-          onChange={(event) =>
-            setTitle(
-              event.target.value,
-            )
-          }
-          placeholder="Dinner"
-          maxLength={100}
-          className="sakura-input mt-2 px-3 py-2"
-        />
-
-      </div>
-
-      <div className="mt-4 grid gap-3">
+        </div>
 
         <div>
 
@@ -223,22 +245,12 @@ export default function ScheduleEventButton({
           <input
             type="datetime-local"
             value={startsAt}
-            min={
-              toLocalInputValue(
-                slotStart,
-              )
-            }
-            max={
-              toLocalInputValue(
-                slotEnd,
-              )
-            }
             onChange={(event) =>
               setStartsAt(
                 event.target.value,
               )
             }
-            className="sakura-input mt-2 px-3 py-2"
+            className="sakura-input mt-2 px-4 py-3"
           />
 
         </div>
@@ -252,58 +264,51 @@ export default function ScheduleEventButton({
           <input
             type="datetime-local"
             value={endsAt}
-            min={
-              toLocalInputValue(
-                slotStart,
-              )
-            }
-            max={
-              toLocalInputValue(
-                slotEnd,
-              )
-            }
             onChange={(event) =>
               setEndsAt(
                 event.target.value,
               )
             }
-            className="sakura-input mt-2 px-3 py-2"
+            className="sakura-input mt-2 px-4 py-3"
           />
+
+        </div>
+
+        <div className="flex items-end gap-2">
+
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="sakura-button flex-1 px-4 py-3 disabled:opacity-50"
+          >
+            {isSaving
+              ? "Saving..."
+              : "Create"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setIsOpen(false)
+            }
+            className="sakura-button-secondary px-4 py-3"
+          >
+            Cancel
+          </button>
 
         </div>
 
       </div>
 
       {errorMessage && (
-        <p className="mt-3 text-sm text-red-600">
+        <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
           {errorMessage}
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="sakura-button px-4 py-2 text-sm disabled:opacity-50"
-        >
-          {isSaving
-            ? "Creating..."
-            : "Create Event"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setIsOpen(false);
-            setErrorMessage("");
-          }}
-          className="sakura-button-secondary px-4 py-2 text-sm"
-        >
-          Cancel
-        </button>
-
-      </div>
+      <p className="mt-3 text-xs text-[#9a898f]">
+        Timezone: {timezone}
+      </p>
 
     </form>
   );
