@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import { notFound, redirect } from "next/navigation";
+import {
+  notFound,
+  redirect,
+} from "next/navigation";
 
 import AddBusyBlockForm from "@/components/AddBusyBlockForm";
 import DeleteBusyBlockButton from "@/components/DeleteBusyBlockButton";
 import GroupSchedule from "@/components/GroupSchedule";
+import GroupSettings from "@/components/GroupSettings";
 import InviteFriendButton from "@/components/InviteFriendButton";
+import LogoutButton from "@/components/LogoutButton";
+import RemoveGroupMemberButton from "@/components/RemoveGroupMemberButton";
+
 import { createClient } from "@/lib/supabase/server";
 
 export const instant = false;
@@ -21,9 +28,11 @@ export default async function GroupPage({
 }: GroupPageProps) {
   await connection();
 
-  const { groupId } = await params;
+  const { groupId } =
+    await params;
 
-  const supabase = await createClient();
+  const supabase =
+    await createClient();
 
   // ======================================================
   // AUTH
@@ -31,7 +40,8 @@ export default async function GroupPage({
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } =
+    await supabase.auth.getUser();
 
   if (!user) {
     redirect("/auth/login");
@@ -41,11 +51,17 @@ export default async function GroupPage({
   // GROUP
   // ======================================================
 
-  const { data: group } = await supabase
-    .from("groups")
-    .select("id, name, created_by, created_at")
-    .eq("id", groupId)
-    .single();
+  const { data: group } =
+    await supabase
+      .from("groups")
+      .select(
+        "id, name, created_by, created_at",
+      )
+      .eq(
+        "id",
+        groupId,
+      )
+      .single();
 
   if (!group) {
     notFound();
@@ -55,14 +71,27 @@ export default async function GroupPage({
   // PROFILE
   // ======================================================
 
-  const { data: currentProfile } = await supabase
-    .from("profiles")
-    .select("display_name, timezone")
-    .eq("id", user.id)
-    .single();
+  const {
+    data: currentProfile,
+  } =
+    await supabase
+      .from("profiles")
+      .select(
+        "display_name, timezone",
+      )
+      .eq(
+        "id",
+        user.id,
+      )
+      .single();
 
   const userTimezone =
-    currentProfile?.timezone ?? "UTC";
+    currentProfile?.timezone ??
+    "UTC";
+
+  const userName =
+    currentProfile?.display_name ??
+    "Account";
 
   // ======================================================
   // MEMBERS
@@ -71,24 +100,35 @@ export default async function GroupPage({
   const {
     data: members,
     error: membersError,
-  } = await supabase
-    .from("group_members")
-    .select(`
-      user_id,
-      role,
-      joined_at,
-      profiles (
-        display_name
+  } =
+    await supabase
+      .from(
+        "group_members",
       )
-    `)
-    .eq("group_id", groupId)
-    .order("joined_at", {
-      ascending: true,
-    });
+      .select(`
+        user_id,
+        role,
+        joined_at,
+        profiles (
+          display_name
+        )
+      `)
+      .eq(
+        "group_id",
+        groupId,
+      )
+      .order(
+        "joined_at",
+        {
+          ascending:
+            true,
+        },
+      );
 
   const memberIds =
     members?.map(
-      (member) => member.user_id,
+      (member) =>
+        member.user_id,
     ) ?? [];
 
   // ======================================================
@@ -96,17 +136,29 @@ export default async function GroupPage({
   // ======================================================
 
   const {
-    data: personalBusyBlocks,
-    error: busyBlocksError,
-  } = await supabase
-    .from("busy_blocks")
-    .select(
-      "id, user_id, starts_at, ends_at",
-    )
-    .eq("user_id", user.id)
-    .order("starts_at", {
-      ascending: true,
-    });
+    data:
+      personalBusyBlocks,
+    error:
+      busyBlocksError,
+  } =
+    await supabase
+      .from(
+        "busy_blocks",
+      )
+      .select(
+        "id, user_id, starts_at, ends_at",
+      )
+      .eq(
+        "user_id",
+        user.id,
+      )
+      .order(
+        "starts_at",
+        {
+          ascending:
+            true,
+        },
+      );
 
   // ======================================================
   // GROUP BUSY TIMES
@@ -119,18 +171,31 @@ export default async function GroupPage({
     ends_at: string;
   }[] = [];
 
-  if (memberIds.length > 0) {
+  if (
+    memberIds.length > 0
+  ) {
     const {
-      data: groupBusyData,
-    } = await supabase
-      .from("busy_blocks")
-      .select(
-        "id, user_id, starts_at, ends_at",
-      )
-      .in("user_id", memberIds)
-      .order("starts_at", {
-        ascending: true,
-      });
+      data:
+        groupBusyData,
+    } =
+      await supabase
+        .from(
+          "busy_blocks",
+        )
+        .select(
+          "id, user_id, starts_at, ends_at",
+        )
+        .in(
+          "user_id",
+          memberIds,
+        )
+        .order(
+          "starts_at",
+          {
+            ascending:
+              true,
+          },
+        );
 
     groupBusyBlocks =
       groupBusyData ?? [];
@@ -142,71 +207,86 @@ export default async function GroupPage({
 
   const {
     data: groupEvents,
-    error: groupEventsError,
-  } = await supabase
-    .from("events")
-    .select(
-      "id, created_by, title, starts_at, ends_at",
-    )
-    .eq("group_id", groupId)
-    .order("starts_at", {
-      ascending: true,
-    });
+    error:
+      groupEventsError,
+  } =
+    await supabase
+      .from("events")
+      .select(
+        "id, created_by, title, starts_at, ends_at",
+      )
+      .eq(
+        "group_id",
+        groupId,
+      )
+      .order(
+        "starts_at",
+        {
+          ascending:
+            true,
+        },
+      );
 
   // ======================================================
   // FORMAT SCHEDULE DATA
   // ======================================================
 
   const scheduleMembers =
-    members?.map((member) => ({
-      userId:
-        member.user_id,
+    members?.map(
+      (member) => ({
+        userId:
+          member.user_id,
 
-      displayName:
-        member.profiles?.display_name ??
-        "Unknown user",
-    })) ?? [];
+        displayName:
+          member.profiles
+            ?.display_name ??
+          "Unknown user",
+      }),
+    ) ?? [];
 
   const scheduleBusyBlocks =
-    groupBusyBlocks.map((block) => ({
-      id:
-        block.id,
+    groupBusyBlocks.map(
+      (block) => ({
+        id:
+          block.id,
 
-      userId:
-        block.user_id,
+        userId:
+          block.user_id,
 
-      startsAt:
-        block.starts_at,
+        startsAt:
+          block.starts_at,
 
-      endsAt:
-        block.ends_at,
-    }));
+        endsAt:
+          block.ends_at,
+      }),
+    );
 
   const scheduleEvents =
-    groupEvents?.map((event) => ({
-      id:
-        event.id,
+    groupEvents?.map(
+      (event) => ({
+        id:
+          event.id,
 
-      title:
-        event.title,
+        title:
+          event.title,
 
-      startsAt:
-        event.starts_at,
+        startsAt:
+          event.starts_at,
 
-      endsAt:
-        event.ends_at,
+        endsAt:
+          event.ends_at,
 
-      canManage:
-        event.created_by === user.id ||
-        group.created_by === user.id,
-    })) ?? [];
-
-  // ======================================================
-  // VALUES
-  // ======================================================
+        canManage:
+          event.created_by ===
+            user.id ||
+          group.created_by ===
+            user.id,
+      }),
+    ) ?? [];
 
   const isOwner =
-    group.created_by === user.id;
+    group.created_by ===
+    user.id;
 
   const dateFormatter =
     new Intl.DateTimeFormat(
@@ -247,10 +327,10 @@ export default async function GroupPage({
       <div className="sakura-content mx-auto max-w-6xl">
 
         {/* ================================================= */}
-        {/* TOP BAR */}
+        {/* NAV */}
         {/* ================================================= */}
 
-        <header className="sakura-card flex items-center justify-between gap-5 px-5 py-4 sm:px-7">
+        <header className="sakura-card flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-7">
 
           <Link
             href="/dashboard"
@@ -271,20 +351,38 @@ export default async function GroupPage({
             </div>
           </Link>
 
-          <div className="hidden items-center gap-2 rounded-full bg-[#fff7f9] px-4 py-2 text-xs font-semibold text-[#945064] sm:flex">
-            <span>✿</span>
-            {userTimezone}
+          <div className="flex items-center gap-3">
+
+            <div className="hidden text-right md:block">
+              <p className="text-sm font-semibold text-[#51474b]">
+                {userName}
+              </p>
+
+              <p className="text-xs text-[#9d858e]">
+                {userTimezone}
+              </p>
+            </div>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5d2dc] text-sm font-bold text-[#945064]">
+              {userName
+                .charAt(0)
+                .toUpperCase()}
+            </div>
+
+            <LogoutButton />
+
           </div>
 
         </header>
 
         {/* ================================================= */}
-        {/* GROUP HERO */}
+        {/* HERO */}
         {/* ================================================= */}
 
         <section className="mt-10">
 
           <div className="inline-flex items-center gap-2 rounded-full border border-[#e9a6b8]/30 bg-white/60 px-4 py-2 backdrop-blur">
+
             <span className="text-[#c56f88]">
               ✿
             </span>
@@ -292,6 +390,7 @@ export default async function GroupPage({
             <span className="text-xs font-semibold uppercase tracking-[0.15em] text-[#9b6575]">
               Shared schedule
             </span>
+
           </div>
 
           <h1 className="sakura-title mt-5 text-4xl font-semibold sm:text-5xl">
@@ -299,9 +398,8 @@ export default async function GroupPage({
           </h1>
 
           <p className="mt-3 max-w-2xl text-lg leading-8 text-[#74676d]">
-            Compare schedules, find peaceful little
-            openings in everyone&apos;s day, and turn
-            them into plans.
+            Compare schedules, find an opening that
+            works for everyone, and turn it into a plan.
           </p>
 
         </section>
@@ -315,6 +413,7 @@ export default async function GroupPage({
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
 
             <div>
+
               <p className="sakura-label">
                 Your circle
               </p>
@@ -326,11 +425,14 @@ export default async function GroupPage({
               <p className="mt-2 text-sm text-[#74676d]">
                 Everyone currently planning together.
               </p>
+
             </div>
 
             {isOwner && (
               <InviteFriendButton
-                groupId={group.id}
+                groupId={
+                  group.id
+                }
               />
             )}
 
@@ -342,53 +444,97 @@ export default async function GroupPage({
             </p>
           )}
 
-          {!membersError && members && (
+          {!membersError &&
+            members && (
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
 
-              {members.map((member) => (
-                <div
-                  key={member.user_id}
-                  className="flex items-center justify-between rounded-2xl border border-[#b9687d]/10 bg-white/55 p-4"
-                >
-                  <div className="flex items-center gap-3">
+              {members.map(
+                (member) => {
+                  const displayName =
+                    member.profiles
+                      ?.display_name ??
+                    "Unknown user";
 
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fbe8ed] font-semibold text-[#945064]">
-                      {(member.profiles
-                        ?.display_name ??
-                        "?")
-                        .charAt(0)
-                        .toUpperCase()}
+                  return (
+                    <div
+                      key={
+                        member.user_id
+                      }
+                      className="flex items-center justify-between gap-4 rounded-2xl border border-[#b9687d]/10 bg-white/55 p-4"
+                    >
+
+                      <div className="flex min-w-0 items-center gap-3">
+
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#fbe8ed] font-semibold text-[#945064]">
+                          {displayName
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+
+                        <div className="min-w-0">
+
+                          <p className="truncate font-semibold text-[#40373b]">
+                            {displayName}
+                          </p>
+
+                          <p className="mt-1 text-xs text-[#8c7c82]">
+                            {member.role ===
+                            "owner"
+                              ? "Group owner"
+                              : "Member"}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+
+                        {member.user_id ===
+                          user.id && (
+                          <span className="sakura-badge">
+                            You
+                          </span>
+                        )}
+
+                        {isOwner &&
+                          member.user_id !==
+                            user.id && (
+                          <RemoveGroupMemberButton
+                            groupId={
+                              group.id
+                            }
+                            userId={
+                              member.user_id
+                            }
+                            displayName={
+                              displayName
+                            }
+                          />
+                        )}
+
+                      </div>
+
                     </div>
-
-                    <div>
-                      <p className="font-semibold text-[#40373b]">
-                        {member.profiles
-                          ?.display_name ??
-                          "Unknown user"}
-                      </p>
-
-                      <p className="mt-1 text-xs text-[#8c7c82]">
-                        {member.role === "owner"
-                          ? "Group owner"
-                          : "Member"}
-                      </p>
-                    </div>
-
-                  </div>
-
-                  {member.user_id ===
-                    user.id && (
-                    <span className="sakura-badge">
-                      You
-                    </span>
-                  )}
-
-                </div>
-              ))}
+                  );
+                },
+              )}
 
             </div>
           )}
 
+        </section>
+
+        {/* ================================================= */}
+        {/* GROUP SETTINGS */}
+        {/* ================================================= */}
+
+        <section className="mt-8">
+          <GroupSettings
+            groupId={group.id}
+            groupName={group.name}
+            isOwner={isOwner}
+          />
         </section>
 
         {/* ================================================= */}
@@ -398,12 +544,14 @@ export default async function GroupPage({
         <section className="mt-8">
           <AddBusyBlockForm
             userId={user.id}
-            timezone={userTimezone}
+            timezone={
+              userTimezone
+            }
           />
         </section>
 
         {/* ================================================= */}
-        {/* YOUR BUSY TIMES */}
+        {/* BUSY TIMES */}
         {/* ================================================= */}
 
         <section className="sakura-card mt-8 p-6 sm:p-7">
@@ -411,6 +559,7 @@ export default async function GroupPage({
           <div className="flex items-start justify-between gap-5">
 
             <div>
+
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#718067]">
                 Availability
               </p>
@@ -420,9 +569,10 @@ export default async function GroupPage({
               </h2>
 
               <p className="mt-2 text-sm text-[#74676d]">
-                NoClash avoids these times when finding
+                NoClash avoids these when finding
                 shared availability.
               </p>
+
             </div>
 
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e6ebdf] text-[#718067]">
@@ -452,8 +602,8 @@ export default async function GroupPage({
                 </p>
 
                 <p className="mt-2 text-sm text-[#8c7c82]">
-                  Add an unavailable period above whenever
-                  you need one.
+                  Add an unavailable period above
+                  whenever you need one.
                 </p>
 
               </div>
@@ -477,6 +627,7 @@ export default async function GroupPage({
                         <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#a9b59f]" />
 
                         <div>
+
                           <p className="font-semibold text-[#4b5546]">
                             Busy
                           </p>
@@ -497,12 +648,15 @@ export default async function GroupPage({
                               ),
                             )}
                           </p>
+
                         </div>
 
                       </div>
 
                       <DeleteBusyBlockButton
-                        busyBlockId={block.id}
+                        busyBlockId={
+                          block.id
+                        }
                       />
 
                     </div>
@@ -515,7 +669,7 @@ export default async function GroupPage({
         </section>
 
         {/* ================================================= */}
-        {/* ERROR */}
+        {/* EVENT ERROR */}
         {/* ================================================= */}
 
         {groupEventsError && (
@@ -527,22 +681,35 @@ export default async function GroupPage({
         )}
 
         {/* ================================================= */}
-        {/* GROUP SCHEDULE */}
+        {/* SCHEDULE */}
         {/* ================================================= */}
 
         {!groupEventsError && (
           <section className="mt-8 pb-12">
+
             <GroupSchedule
-              groupId={group.id}
-              members={scheduleMembers}
-              busyBlocks={scheduleBusyBlocks}
-              events={scheduleEvents}
-              timezone={userTimezone}
+              groupId={
+                group.id
+              }
+              members={
+                scheduleMembers
+              }
+              busyBlocks={
+                scheduleBusyBlocks
+              }
+              events={
+                scheduleEvents
+              }
+              timezone={
+                userTimezone
+              }
             />
+
           </section>
         )}
 
       </div>
+
     </main>
   );
 }
